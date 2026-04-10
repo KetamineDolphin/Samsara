@@ -1,0 +1,116 @@
+/* SAMSARA v3.4 - Root Application */
+import { useState, useEffect, useRef } from 'react';
+import T from './utils/tokens';
+import S from './utils/styles';
+import { DEFAULT_STACK } from './data/library';
+import { useStorage } from './hooks/useStorage';
+import { TabIcons } from './components/Shared';
+import OnboardingFlow from './components/OnboardingFlow';
+import CalcTab from './tabs/CalcTab';
+import TrackTab from './tabs/TrackTab';
+import BodyTab from './tabs/BodyTab';
+import MetricsTab from './tabs/MetricsTab';
+import ProfileTab from './tabs/ProfileTab';
+import { detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, logSubjective, getSubjectiveChartData } from './data/analytics';
+import { initNotifications, isSupported } from './utils/notifications';
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Libre+Franklin:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+input[type=text],input[type=file]{-webkit-appearance:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes enso{from{stroke-dashoffset:600}to{stroke-dashoffset:30}}
+@keyframes checkPop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
+@keyframes breathe{0%,100%{opacity:0.4;filter:blur(0px)}50%{opacity:0.7;filter:blur(0.3px)}}
+@keyframes samsaraBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}
+@keyframes samsaraSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes samsaraPetal{0%,100%{opacity:0.25;transform:scale(0.92)}50%{opacity:0.85;transform:scale(1)}}
+@keyframes samsaraOuterPulse{0%,100%{opacity:0.08}50%{opacity:0.2}}
+@keyframes logPress{0%{transform:scale(1)}40%{transform:scale(0.94)}70%{transform:scale(1.04)}100%{transform:scale(1)}}
+@keyframes checkSpring{0%{transform:scale(0) rotate(-10deg)}50%{transform:scale(1.2) rotate(0deg)}100%{transform:scale(1) rotate(0deg)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+::-webkit-scrollbar{display:none}
+`;
+
+const TABS = ['CALC', 'TRACK', 'BODY', 'METRICS', 'PROFILE'];
+
+export default function App() {
+  // Split storage - each key persisted independently
+  const [cs, setCs] = useStorage('calc', { vialMg: '', waterMl: '2', doseMcg: '', doseUnit: 'mcg', freq: 'daily', waterLocked: false, activePreset: null });
+  const [logs, setLogs] = useStorage('logs', []);
+  const [vials, setVials] = useStorage('vials', {});
+  const [stack, setStack] = useStorage('stack', DEFAULT_STACK);
+  const [checkins, setCheckins] = useStorage('checkins', []);
+  const [siteHistory, setSiteHistory] = useStorage('sites', []);
+  const [subjective, setSubjective] = useStorage('subjective', []);
+  const [labResults, setLabResults] = useStorage('labs', []);
+  const [settings, setSettings] = useStorage('settings', {
+    tab: 'CALC',
+    notificationsEnabled: false,
+    dailyReminderEnabled: true,
+    dailyReminderHour: 8,
+    dailyReminderMinute: 0,
+    weeklyDoseEnabled: true,
+    vialExpiryEnabled: true,
+    streakEnabled: true,
+    sundaySummaryEnabled: true,
+  });
+  const [profile, setProfile] = useStorage('profile', {
+    name: '',
+    age: null,
+    height: { feet: 5, inches: 10 },
+    currentWeight: null,
+    currentWaist: null,
+    targetWeight: 170,
+    targetWaist: 26,
+    targetBodyFat: 15,
+    goalDate: null,
+    primaryGoal: 'recomp',
+    biologicalSex: 'male',
+    startDate: null,
+    onboardingComplete: false,
+    unitSystem: 'imperial',
+  });
+
+  const tab = settings.tab || 'CALC';
+  const setTab = (t) => setSettings(p => ({ ...p, tab: t }));
+
+  const handleOnboardingComplete = () => {};
+
+  // Init notifications on load + when stack/vials/settings change
+  useEffect(() => {
+    if (settings.notificationsEnabled && isSupported() && profile?.onboardingComplete) {
+      initNotifications({ stack, vials, logs, settings });
+    }
+  }, [settings.notificationsEnabled, settings.dailyReminderEnabled, settings.dailyReminderHour, settings.dailyReminderMinute, settings.weeklyDoseEnabled, settings.vialExpiryEnabled, settings.streakEnabled, settings.sundaySummaryEnabled, stack, vials]);
+
+  const contentRef = useRef(null);
+  useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
+
+  return (
+    <>
+      <style>{CSS}</style>
+      {!profile || !profile.onboardingComplete ? (
+        <OnboardingFlow profile={profile} setProfile={setProfile} onComplete={handleOnboardingComplete} settings={settings} setSettings={setSettings} />
+      ) : (
+        <div style={S.root}><div style={S.bgGlow} />
+          <div ref={contentRef} style={S.content}>
+            {tab === 'CALC' && <CalcTab cs={cs} setCs={setCs} stack={stack} profile={profile} />}
+            {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} />}
+            {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} />}
+            {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} />}
+            {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} />}
+          </div>
+          <nav style={S.tabBar}>{TABS.map(t => { const active = tab === t, color = active ? T.amberFull : 'rgba(140,160,180,0.4)';
+            return <button key={t} onClick={() => setTab(t)} style={S.tabBtn}>{TabIcons[t](color)}<span style={{ ...S.tabLabel, color, fontWeight: active ? 700 : 400 }}>{t}</span>{active && <div style={S.tabLine} />}</button>;
+          })}</nav>
+        </div>
+      )}
+    </>
+  );
+}

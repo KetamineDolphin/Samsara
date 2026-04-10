@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Samsara — Unified Symbol</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Libre+Franklin:wght@300;400&family=DM+Mono:wght@400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #e8e0d0;
+    font-family: 'Libre Franklin', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .stage {
+    position: relative;
+    width: 420px;
+    height: 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .symbol-svg { width: 100%; height: 100%; }
+
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 32px;
+    letter-spacing: 12px;
+    color: #c9a84c;
+    margin-top: 32px;
+    text-align: center;
+  }
+  .tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: rgba(201,168,76,0.3);
+    margin-top: 8px;
+    text-align: center;
+  }
+  .desc {
+    max-width: 480px;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(232,224,208,0.45);
+    line-height: 1.8;
+    margin-top: 24px;
+  }
+
+  /* --- Animations --- */
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.025); }
+  }
+  @keyframes spokeOrbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes spokeOrbitR {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+  @keyframes petalBreath {
+    0%, 100% { opacity: 0.25; transform: scale(0.92); }
+    50% { opacity: 0.85; transform: scale(1); }
+  }
+  @keyframes dashFlow {
+    to { stroke-dashoffset: -60; }
+  }
+  @keyframes centerPulse {
+    0%, 100% { r: 3; opacity: 0.5; }
+    50% { r: 5; opacity: 0.9; }
+  }
+  @keyframes ringPulse {
+    0%, 100% { r: 8; opacity: 0.15; }
+    50% { r: 12; opacity: 0.05; }
+  }
+  @keyframes nodeGlow {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+  @keyframes outerDotPulse {
+    0%, 100% { opacity: 0.08; }
+    50% { opacity: 0.2; }
+  }
+
+  /* Size variants for embedding reference */
+  .sizes { display: flex; gap: 40px; margin-top: 60px; align-items: flex-end; }
+  .size-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: rgba(201,168,76,0.25);
+    text-align: center;
+    margin-top: 8px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <svg class="symbol-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Enso brush gradient -->
+      <linearGradient id="ensoG" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#c9a84c" stop-opacity="0.85"/>
+        <stop offset="45%" stop-color="#e8d48a" stop-opacity="1"/>
+        <stop offset="100%" stop-color="#c9a84c" stop-opacity="0.3"/>
+      </linearGradient>
+
+      <!-- Spoke gradient -->
+      <linearGradient id="spokeG" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#c9a84c" stop-opacity="0.05"/>
+        <stop offset="50%" stop-color="#c9a84c" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#c9a84c" stop-opacity="0.05"/>
+      </linearGradient>
+
+      <!-- Petal gradient -->
+      <radialGradient id="petalG" cx="50%" cy="0%">
+        <stop offset="0%" stop-color="#c9a84c" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="#c9a84c" stop-opacity="0.05"/>
+      </radialGradient>
+
+      <!-- Center glow -->
+      <radialGradient id="centerG" cx="50%" cy="50%">
+        <stop offset="0%" stop-color="#c9a84c" stop-opacity="0.18"/>
+        <stop offset="60%" stop-color="#c9a84c" stop-opacity="0.04"/>
+        <stop offset="100%" stop-color="#c9a84c" stop-opacity="0"/>
+      </radialGradient>
+
+      <!-- Glow filter -->
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="softGlow">
+        <feGaussianBlur stdDeviation="1.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- ============================================ -->
+    <!-- LAYER 0: Ambient field                       -->
+    <!-- ============================================ -->
+    <!-- Outer data-point ring (from Mandala) -->
+    <g style="animation: outerDotPulse 10s ease-in-out infinite;">
+      <circle cx="200" cy="38"  r="1.2" fill="#c9a84c"/>
+      <circle cx="234" cy="42"  r="1.0" fill="#c9a84c"/>
+      <circle cx="266" cy="52"  r="1.0" fill="#c9a84c"/>
+      <circle cx="294" cy="70"  r="1.2" fill="#c9a84c"/>
+      <circle cx="316" cy="94"  r="1.0" fill="#c9a84c"/>
+      <circle cx="330" cy="122" r="1.0" fill="#c9a84c"/>
+      <circle cx="338" cy="152" r="1.2" fill="#c9a84c"/>
+      <circle cx="338" cy="184" r="1.0" fill="#c9a84c"/>
+      <circle cx="332" cy="216" r="1.0" fill="#c9a84c"/>
+      <circle cx="318" cy="244" r="1.2" fill="#c9a84c"/>
+      <circle cx="298" cy="268" r="1.0" fill="#c9a84c"/>
+      <circle cx="272" cy="288" r="1.0" fill="#c9a84c"/>
+      <circle cx="244" cy="300" r="1.2" fill="#c9a84c"/>
+      <circle cx="214" cy="306" r="1.0" fill="#c9a84c"/>
+      <circle cx="184" cy="306" r="1.0" fill="#c9a84c"/>
+      <circle cx="156" cy="300" r="1.2" fill="#c9a84c"/>
+      <circle cx="130" cy="286" r="1.0" fill="#c9a84c"/>
+      <circle cx="108" cy="266" r="1.0" fill="#c9a84c"/>
+      <circle cx="90"  cy="242" r="1.2" fill="#c9a84c"/>
+      <circle cx="78"  cy="214" r="1.0" fill="#c9a84c"/>
+      <circle cx="72"  cy="184" r="1.0" fill="#c9a84c"/>
+      <circle cx="72"  cy="152" r="1.2" fill="#c9a84c"/>
+      <circle cx="80"  cy="122" r="1.0" fill="#c9a84c"/>
+      <circle cx="92"  cy="96"  r="1.0" fill="#c9a84c"/>
+      <circle cx="110" cy="72"  r="1.2" fill="#c9a84c"/>
+      <circle cx="134" cy="54"  r="1.0" fill="#c9a84c"/>
+      <circle cx="162" cy="42"  r="1.0" fill="#c9a84c"/>
+    </g>
+
+    <!-- ============================================ -->
+    <!-- LAYER 1: Sacred geometry (from Mandala)      -->
+    <!-- ============================================ -->
+    <polygon points="200,110 278,155 278,245 200,290 122,245 122,155"
+             fill="none" stroke="rgba(201,168,76,0.04)" stroke-width="0.6"/>
+    <polygon points="200,130 258,165 258,235 200,270 142,235 142,165"
+             fill="none" stroke="rgba(201,168,76,0.03)" stroke-width="0.5"/>
+
+    <!-- ============================================ -->
+    <!-- LAYER 2: The Eternal Wheel spokes            -->
+    <!-- ============================================ -->
+    <!-- Slow-rotating spoke group -->
+    <g style="animation: spokeOrbit 90s linear infinite; transform-origin: 200px 200px;">
+      <!-- 8 spokes from inner ring to outer enso -->
+      <line x1="200" y1="80"  x2="200" y2="148" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="200" y1="252" x2="200" y2="320" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="80"  y1="200" x2="148" y2="200" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="252" y1="200" x2="320" y2="200" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="115" y1="115" x2="158" y2="158" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="242" y1="242" x2="285" y2="285" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="285" y1="115" x2="242" y2="158" stroke="url(#spokeG)" stroke-width="1"/>
+      <line x1="158" y1="242" x2="115" y2="285" stroke="url(#spokeG)" stroke-width="1"/>
+
+      <!-- 8 wheel nodes at spoke tips -->
+      <circle cx="200" cy="76"  r="2.5" fill="#c9a84c" opacity="0.45"/>
+      <circle cx="200" cy="324" r="2.5" fill="#c9a84c" opacity="0.45"/>
+      <circle cx="76"  cy="200" r="2.5" fill="#c9a84c" opacity="0.45"/>
+      <circle cx="324" cy="200" r="2.5" fill="#c9a84c" opacity="0.45"/>
+      <circle cx="112" cy="112" r="2" fill="#c9a84c" opacity="0.3"/>
+      <circle cx="288" cy="112" r="2" fill="#c9a84c" opacity="0.3"/>
+      <circle cx="112" cy="288" r="2" fill="#c9a84c" opacity="0.3"/>
+      <circle cx="288" cy="288" r="2" fill="#c9a84c" opacity="0.3"/>
+    </g>
+
+    <!-- Counter-rotating inner guide ring -->
+    <circle cx="200" cy="200" r="52" fill="none" stroke="rgba(201,168,76,0.06)" stroke-width="0.5"
+            style="animation: spokeOrbitR 120s linear infinite; transform-origin: 200px 200px;"/>
+
+    <!-- ============================================ -->
+    <!-- LAYER 3: The Living Enso                     -->
+    <!-- ============================================ -->
+    <g style="animation: breathe 7s ease-in-out infinite; transform-origin: 200px 200px;" filter="url(#glow)">
+      <!-- Main enso circle with brush-stroke feel -->
+      <!-- The gap sits at top-left (~11 o'clock) -->
+      <path d="M 185 72
+               C 240 65, 310 100, 318 165
+               C 326 230, 290 310, 220 325
+               C 150 340, 72 305, 68 235
+               C 64 165, 100 100, 148 80"
+            fill="none"
+            stroke="url(#ensoG)"
+            stroke-width="5.5"
+            stroke-linecap="round"
+            stroke-dasharray="3 0 12 0 25 0 12 0 3"
+      />
+      <!-- Brush-tail taper at gap start -->
+      <line x1="150" y1="79" x2="156" y2="74" stroke="#c9a84c" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+      <!-- Brush-head taper at gap end -->
+      <line x1="183" y1="73" x2="178" y2="69" stroke="#e8d48a" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+    </g>
+
+    <!-- Whisper echo ring -->
+    <circle cx="200" cy="200" r="136" fill="none" stroke="rgba(201,168,76,0.04)" stroke-width="0.6"
+            stroke-dasharray="4 8">
+      <animate attributeName="stroke-dashoffset" from="0" to="-48" dur="20s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- ============================================ -->
+    <!-- LAYER 4: Orbiting particle (from Wheel)      -->
+    <!-- ============================================ -->
+    <g style="animation: spokeOrbit 15s linear infinite; transform-origin: 200px 200px;">
+      <circle cx="200" cy="64" r="2.2" fill="#e8d48a" opacity="0.9" filter="url(#softGlow)"/>
+      <circle cx="212" cy="65" r="1" fill="#e8d48a" opacity="0.4"/>
+      <circle cx="188" cy="66" r="0.7" fill="#e8d48a" opacity="0.25"/>
+      <!-- Trail -->
+      <line x1="180" y1="68" x2="175" y2="70" stroke="#c9a84c" stroke-width="0.6" stroke-linecap="round" opacity="0.15"/>
+    </g>
+
+    <!-- ============================================ -->
+    <!-- LAYER 5: Lotus petals (from Mandala)         -->
+    <!-- ============================================ -->
+    <g filter="url(#softGlow)">
+      <!-- 6 petals, staggered bloom -->
+      <!-- N -->
+      <path d="M 200 186 Q 196 155 200 128 Q 204 155 200 186"
+            fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.6"
+            style="animation: petalBreath 9s ease-in-out infinite; transform-origin: 200px 200px;"/>
+      <!-- NE -->
+      <path d="M 212 192 Q 236 168 260 148 Q 240 172 212 192"
+            fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.5"
+            style="animation: petalBreath 9s ease-in-out 1.5s infinite; transform-origin: 200px 200px;"/>
+      <!-- SE -->
+      <path d="M 212 208 Q 238 228 258 252 Q 236 232 212 208"
+            fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.45"
+            style="animation: petalBreath 9s ease-in-out 3s infinite; transform-origin: 200px 200px;"/>
+      <!-- S -->
+      <path d="M 200 214 Q 204 245 200 272 Q 196 245 200 214"
+            fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.45"
+            style="animation: petalBreath 9s ease-in-out 4.5s infinite; transform-origin: 200px 200px;"/>
+      <!-- SW -->
+      <path d="M 188 208 Q 164 228 142 252 Q 162 232 188 208"
+            fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.5"
+            style="animation: petalBreath 9s ease-in-out 6s infinite; transform-origin: 200px 200px;"/>
+      <!-- NW -->
+      <path d="M 188 192 Q 164 168 140 148 Q 160 172 188 192"
+            fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.6"
+            style="animation: petalBreath 9s ease-in-out 7.5s infinite; transform-origin: 200px 200px;"/>
+    </g>
+
+    <!-- ============================================ -->
+    <!-- LAYER 6: Center — the Bindu                  -->
+    <!-- ============================================ -->
+    <!-- Ambient center glow -->
+    <circle cx="200" cy="200" r="44" fill="url(#centerG)"/>
+
+    <!-- Inner wheel ring -->
+    <circle cx="200" cy="200" r="10" fill="none" stroke="rgba(201,168,76,0.2)" stroke-width="0.8"/>
+
+    <!-- Breathing halo -->
+    <circle cx="200" cy="200" r="8" fill="none" stroke="rgba(201,168,76,0.12)" stroke-width="0.5">
+      <animate attributeName="r" values="8;14;8" dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0;1" dur="6s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- The seed -->
+    <circle cx="200" cy="200" r="3" fill="#c9a84c" opacity="0.7">
+      <animate attributeName="r" values="2.5;4;2.5" dur="5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="200" cy="200" r="1.2" fill="#e8d48a" opacity="0.95"/>
+
+  </svg>
+</div>
+
+<h1>SAMSARA</h1>
+<div class="tag">CYCLE OF TRANSFORMATION</div>
+
+<p class="desc">
+  The living enso breathes around a dharma wheel whose spokes slowly turn beneath.
+  At its heart, six lotus petals bloom in a staggered wave from the bindu seed &mdash;
+  the still point where intention becomes biology. An orbiting particle traces
+  the eternal cycle. Sacred geometry whispers underneath it all.
+</p>
+
+<!-- Size reference -->
+<div class="sizes">
+  <div>
+    <svg viewBox="0 0 400 400" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="200" cy="200" r="120" fill="none" stroke="#c9a84c" stroke-width="6" stroke-linecap="round" stroke-dasharray="3 0 12 0 25 0 12 0 3" opacity="0.7"/>
+      <circle cx="200" cy="200" r="3" fill="#c9a84c" opacity="0.8"/>
+    </svg>
+    <div class="size-label">32px</div>
+  </div>
+  <div>
+    <svg viewBox="0 0 400 400" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="200" cy="200" r="120" fill="none" stroke="#c9a84c" stroke-width="6" stroke-linecap="round" stroke-dasharray="3 0 12 0 25 0 12 0 3" opacity="0.7"/>
+      <path d="M 200 170 Q 197 148 200 130 Q 203 148 200 170" fill="none" stroke="#c9a84c" stroke-width="1.5" opacity="0.4"/>
+      <path d="M 200 230 Q 203 252 200 270 Q 197 252 200 230" fill="none" stroke="#c9a84c" stroke-width="1.5" opacity="0.4"/>
+      <circle cx="200" cy="200" r="3" fill="#c9a84c" opacity="0.8"/>
+    </svg>
+    <div class="size-label">48px</div>
+  </div>
+  <div>
+    <svg viewBox="0 0 400 400" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="200,110 278,155 278,245 200,290 122,245 122,155" fill="none" stroke="rgba(201,168,76,0.05)" stroke-width="0.6"/>
+      <circle cx="200" cy="200" r="120" fill="none" stroke="#c9a84c" stroke-width="5.5" stroke-linecap="round" stroke-dasharray="3 0 12 0 25 0 12 0 3" opacity="0.7"/>
+      <path d="M 200 186 Q 196 155 200 128 Q 204 155 200 186" fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.5"/>
+      <path d="M 212 192 Q 236 168 260 148 Q 240 172 212 192" fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.4"/>
+      <path d="M 212 208 Q 238 228 258 252 Q 236 232 212 208" fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.4"/>
+      <path d="M 200 214 Q 204 245 200 272 Q 196 245 200 214" fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.5"/>
+      <path d="M 188 208 Q 164 228 142 252 Q 162 232 188 208" fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.4"/>
+      <path d="M 188 192 Q 164 168 140 148 Q 160 172 188 192" fill="none" stroke="#c9a84c" stroke-width="1.3" opacity="0.4"/>
+      <circle cx="200" cy="200" r="44" fill="url(#centerG)"/>
+      <circle cx="200" cy="200" r="3" fill="#c9a84c" opacity="0.8"/>
+    </svg>
+    <div class="size-label">80px</div>
+  </div>
+</div>
+
+</body>
+</html>

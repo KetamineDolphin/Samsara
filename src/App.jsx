@@ -85,6 +85,7 @@ export default function App() {
   // Pro upgrade UI kept in codebase but not active
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [focusCompoundId, setFocusCompoundId] = useState(null);
 
   const handleOnboardingComplete = (quickStartCompound) => {
     if (quickStartCompound) {
@@ -139,10 +140,10 @@ export default function App() {
             {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} onNavigate={setTab} />}
             {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} />}
             {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} />}
-            {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} />}
+            {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} focusCompoundId={focusCompoundId} clearFocusCompound={() => setFocusCompoundId(null)} />}
           </div>
           {/* UpgradeScreen available in ProGate.jsx when ready for IAP */}
-          {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} onNavigate={t => { setTab(t); setShowSearch(false); }} logs={logs} checkins={checkins} stack={stack} labResults={labResults} />}
+          {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} onNavigate={(t, compoundId) => { if (compoundId) setFocusCompoundId(compoundId); setTab(t); setShowSearch(false); }} logs={logs} checkins={checkins} stack={stack} labResults={labResults} />}
           <nav style={S.tabBar}>
             <button onClick={() => setShowSearch(true)} style={{ ...S.tabBtn, opacity: 0.6 }}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="rgba(140,160,180,0.6)" strokeWidth="1.5" /><line x1="12.5" y1="12.5" x2="17" y2="17" stroke="rgba(140,160,180,0.6)" strokeWidth="1.5" strokeLinecap="round" /></svg>

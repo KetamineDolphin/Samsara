@@ -133,7 +133,7 @@ export default function SearchOverlay({ onClose, onNavigate, logs, checkins, sta
             <div key={type} style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: TYPE_COLORS[type] || T.t3, fontFamily: T.fm, marginBottom: 6, padding: '0 4px' }}>{typeLabels[type] || type}</div>
               {items.map(r => (
-                <button key={r.id} onClick={() => { onNavigate(r.tab); onClose(); }} style={{
+                <button key={r.id} onClick={() => { onNavigate(r.tab, r.type === 'compound' ? r.id : null); onClose(); }} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                   background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border,
                   borderRadius: 10, marginBottom: 4, width: '100%', cursor: 'pointer',

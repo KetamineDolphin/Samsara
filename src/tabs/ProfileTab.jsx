@@ -1,5 +1,5 @@
 /* SAMSARA v3.4 - ProfileTab with Stack Editor, Pie Chart, Weekly Load, Library + Research Cards, Cost Calculator, Data Management */
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import T from '../utils/tokens';
 import { CAT_C } from '../utils/tokens';
 import S from '../utils/styles';
@@ -367,7 +367,7 @@ function calcCompoundCosts(c) {
   return { costPerDose, costPerDay, costPerWeek, costPerMonth, costPerYear, vialsPerMonth, doses, perWeek };
 }
 
-export default function ProfileTab({ stack, setStack, profile, setProfile, logs: rawLogs, checkins: rawCheckins, settings, setSettings, onUpgrade }) {
+export default function ProfileTab({ stack, setStack, profile, setProfile, logs: rawLogs, checkins: rawCheckins, settings, setSettings, onUpgrade, focusCompoundId, clearFocusCompound }) {
   const logs = rawLogs || [];
   const checkins = rawCheckins || [];
 
@@ -393,6 +393,23 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   const [libZoom, setLibZoom] = useState(0); // -2 to +4, each step = 1px
   const [notifPerm, setNotifPerm] = useState(() => isSupported() ? Notification.permission : 'unsupported');
   const fileInputRef = useRef(null);
+  const libCardRefs = useRef({});
+
+  // When a compound is focused from search, switch to library view & expand it
+  useEffect(() => {
+    if (!focusCompoundId) return;
+    setSv('library');
+    setCat('All');
+    setSearch('');
+    setExpandedLibId(focusCompoundId);
+    // Scroll to card after a short delay to let the view render
+    const timer = setTimeout(() => {
+      const el = libCardRefs.current[focusCompoundId];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    if (clearFocusCompound) clearFocusCompound();
+    return () => clearTimeout(timer);
+  }, [focusCompoundId]);
 
   const stackAnalysis = useMemo(() => {
     if (stack.length === 0) return null;
@@ -1300,7 +1317,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           const isExpanded = expandedLibId === p.id;
           const timelineKeys = p.timeline ? Object.keys(p.timeline) : [];
           return (
-            <div key={p.id} style={{ marginBottom: 6 }}>
+            <div key={p.id} ref={el => { if (el) libCardRefs.current[p.id] = el; }} style={{ marginBottom: 6 }}>
               <div onClick={() => setExpandedLibId(isExpanded ? null : p.id)} style={{ ...S.card, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderBottomLeftRadius: isExpanded ? 0 : undefined, borderBottomRightRadius: isExpanded ? 0 : undefined }}>
                 <div style={{ width: 3, height: 24, borderRadius: 2, background: cc, opacity: 0.6 }} />
                 <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 15 + z, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>{dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}</div><div style={{ fontSize: 12 + z, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div></div>

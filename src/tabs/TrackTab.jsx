@@ -108,8 +108,12 @@ function RetaCard({ compound, logged, onLog }) {
 }
 
 /* ── TodayView with site alert banners ─────────────────────────── */
+const ROUTE_LABELS = { subq: 'SubQ', im: 'IM', oral: 'Oral', topical: 'Topical', intranasal: 'Nasal', iv: 'IV' };
+const ROUTE_ICONS = { subq: '\uD83D\uDC89', im: '\uD83D\uDC89', oral: '\uD83D\uDC8A', topical: '\u2728', intranasal: '\uD83D\uDCA8', iv: '\uD83C\uDFE5' };
+
 function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheckin }) {
   const t = getToday();
+  const [routePickerId, setRoutePickerId] = useState(null); // compound id showing route picker
   const groups = {};
   TIMING_GROUPS.forEach(g => { groups[g.id] = []; });
   stack.forEach(c => {
@@ -208,12 +212,58 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
               const logged = isW ? logs.find(l => l.cid === c.id && l.date >= getWeekStart()) : logs.find(l => l.cid === c.id && l.date === t);
               const cNotes = interactionMap[c.libId] || [];
               if (isW) return <RetaCard key={c.id} compound={c} logged={logged} onLog={onLog} />;
+              // Look up library entry for administrationOptions
+              const libEntry = LIB.find(l => l.id === c.libId) || {};
+              const routes = libEntry.administrationOptions || [];
+              const hasMultiRoute = routes.length > 1;
+              const showingRoutes = routePickerId === c.id;
               return (
                 <div key={c.id}>
                   <div style={{ ...S.trackRow, ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
-                    <div style={{ flex: 1, minWidth: 0 }}><div style={S.trackName}>{c.name}</div><div style={S.trackMeta}>{fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u</div></div>
-                    {logged ? <div style={S.loggedBadge}><span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 18 }}>{'\u2713'}</span><span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span></div> : <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(c); }} style={S.logBtn} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log</button>}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.trackName}>{c.name}</div>
+                      <div style={S.trackMeta}>{fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u{logged && logged.route ? ` \u00B7 ${ROUTE_LABELS[logged.route] || logged.route}` : ''}</div>
+                    </div>
+                    {logged ? (
+                      <div style={S.loggedBadge}>
+                        <span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 18 }}>{'\u2713'}</span>
+                        <span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span>
+                      </div>
+                    ) : (
+                      <button onClick={() => {
+                        if (hasMultiRoute) { setRoutePickerId(showingRoutes ? null : c.id); }
+                        else { if (navigator.vibrate) navigator.vibrate(40); onLog(c); }
+                      }} style={S.logBtn} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>
+                        Log
+                      </button>
+                    )}
                   </div>
+                  {/* Route picker for multi-route compounds */}
+                  {showingRoutes && !logged && (
+                    <div style={{ display: 'flex', gap: 6, padding: '6px 12px 10px', animation: 'fadeUp .2s ease both' }}>
+                      {routes.map(route => (
+                        <button key={route} onClick={() => {
+                          if (navigator.vibrate) navigator.vibrate(40);
+                          onLog(c, route);
+                          setRoutePickerId(null);
+                        }} style={{
+                          flex: 1, padding: '8px 6px', background: 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${T.goldM}`, borderRadius: 10, cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                        }}>
+                          <span style={{ fontSize: 14 }}>{ROUTE_ICONS[route] || '\uD83D\uDC89'}</span>
+                          <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, fontWeight: 500 }}>{ROUTE_LABELS[route] || route}</span>
+                        </button>
+                      ))}
+                      <button onClick={() => setRoutePickerId(null)} style={{
+                        padding: '8px 10px', background: 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${T.border}`, borderRadius: 10, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <span style={{ fontSize: 12, color: T.t3 }}>{'\u2715'}</span>
+                      </button>
+                    </div>
+                  )}
                   {/* Interaction notes shown at log time */}
                   {!logged && cNotes.length > 0 && (
                     <div style={{ marginTop: -4, marginBottom: 8, paddingLeft: 12, paddingRight: 12 }}>
@@ -1137,7 +1187,7 @@ function LogView({ logs: rawLogs }) {
   const grouped = sorted.reduce((a, l) => { (a[l.date] = a[l.date] || []).push(l); return a; }, {});
   if (!sorted.length) return <div style={{ textAlign: 'center', padding: '50px 0' }}><div style={{ fontSize: 28, opacity: 0.15, marginBottom: 8 }}>{'\u25CB'}</div><p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2 }}>The log is empty</p><p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 6 }}>Each dose you log writes a line in the story</p></div>;
   return (
-    <div style={{ animation: 'fadeUp .4s ease both' }}>{Object.entries(grouped).map(([date, entries]) => <div key={date} style={{ marginBottom: 20 }}><div style={S.logDate}>{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>{entries.map((e, i) => <div key={i} style={S.logRow}><span style={S.logName}>{e.name}</span><span style={S.logDose}>{e.doseLabel}</span><span style={S.logTime}>{e.time}</span></div>)}</div>)}</div>
+    <div style={{ animation: 'fadeUp .4s ease both' }}>{Object.entries(grouped).map(([date, entries]) => <div key={date} style={{ marginBottom: 20 }}><div style={S.logDate}>{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>{entries.map((e, i) => <div key={i} style={S.logRow}><span style={S.logName}>{e.name}</span><span style={S.logDose}>{e.doseLabel}{e.route ? ` \u00B7 ${ROUTE_LABELS[e.route] || e.route}` : ''}</span><span style={S.logTime}>{e.time}</span></div>)}</div>)}</div>
   );
 }
 
@@ -1149,7 +1199,11 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
 
   const siteAnalysis = useMemo(() => analyzeSites(siteHistory), [siteHistory]);
 
-  const handleLog = useCallback(c => { setLogs(p => [...p, { cid: c.id, name: c.name, date: getToday(), time: getNow(), doseLabel: fmtDose(c) }]); }, [setLogs]);
+  const handleLog = useCallback((c, route) => {
+    const entry = { cid: c.id, name: c.name, date: getToday(), time: getNow(), doseLabel: fmtDose(c) };
+    if (route) entry.route = route;
+    setLogs(p => [...p, entry]);
+  }, [setLogs]);
   const handleNewVial = useCallback(id => { setVials(p => ({ ...p, [id]: { startDate: getToday(), reconDate: getToday() } })); }, [setVials]);
 
   // Multi-step site log: initiate

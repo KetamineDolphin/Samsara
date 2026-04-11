@@ -80,6 +80,7 @@ const MARKET_PRICES = {
   'cagrilintide': { low: 80, high: 150, suggest: 115 },
   'triple_threat': { low: 120, high: 200, suggest: 160 },
   'tes_ipa_blend': { low: 80, high: 140, suggest: 110 },
+  'wolverine_blend': { low: 70, high: 130, suggest: 100 },
   'bronchogen': { low: 50, high: 90, suggest: 70 },
   'cardiogen': { low: 50, high: 90, suggest: 70 },
   'cartalax': { low: 50, high: 90, suggest: 70 },

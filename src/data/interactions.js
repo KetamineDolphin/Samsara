@@ -514,6 +514,36 @@ export const COMPOUND_RULES = {
       source: 'Recovery protocol'
     }
   ],
+  wolverine_blend: [
+    {
+      targetId: 'ghkcu',
+      type: 'synergy',
+      severity: 'info',
+      note: 'GHK-Cu collagen synthesis + Wolverine Blend healing. The complete tissue repair trifecta.',
+      source: 'Recovery protocol'
+    },
+    {
+      targetId: 'kpv',
+      type: 'synergy',
+      severity: 'info',
+      note: 'KPV anti-inflammatory + Wolverine healing peptides. Ideal gut recovery combination.',
+      source: 'Recovery protocol'
+    },
+    {
+      targetId: 'bpc157',
+      type: 'redundant',
+      severity: 'warning',
+      note: 'Wolverine Blend already contains BPC-157. Adding standalone BPC-157 is redundant.',
+      source: 'Blend composition'
+    },
+    {
+      targetId: 'tb500',
+      type: 'redundant',
+      severity: 'warning',
+      note: 'Wolverine Blend already contains TB-500. Adding standalone TB-500 is redundant.',
+      source: 'Blend composition'
+    }
+  ],
   pt141: [
     {
       targetId: 'melanotan2',
@@ -529,7 +559,7 @@ const GOAL_COMPOUNDS = {
   fat_loss: ['aod9604', 'retatrutide', 'semaglutide', 'tirzepatide', 'amino1mq'],
   recomp: ['aod9604', 'tesamorelin', 'ipamorelin', 'cjc_nodac', 'hgh', 'test_cyp'],
   performance: ['ipamorelin', 'cjc_nodac', 'bpc157', 'tb500', 'semax'],
-  recovery: ['bpc157', 'tb500', 'ghkcu', 'kpv', 'll37'],
+  recovery: ['bpc157', 'tb500', 'wolverine_blend', 'ghkcu', 'kpv', 'll37'],
   cognitive: ['semax', 'selank', 'dihexa', 'cortagen', 'pinealon', 'methylene_blue'],
   longevity: ['epithalon', 'humanin', 'motsc', 'nad_iv', 'foxo4dri', 'thymalin'],
   health: ['epithalon', 'thymalin', 'bpc157', 'nad_iv', 'humanin', 'ghkcu']

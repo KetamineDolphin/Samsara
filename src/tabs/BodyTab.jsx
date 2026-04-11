@@ -261,6 +261,57 @@ function AnimatedScore({ value, color }) {
   return <span style={{ fontSize: 42, fontWeight: 800, color, fontFamily: T.fm, lineHeight: 1 }}>{display}</span>;
 }
 
+/** Score ring — radial arc SVG with animated fill + centered score */
+function ScoreRing({ value, color, size = 140 }) {
+  const [progress, setProgress] = useState(0);
+  const [displayVal, setDisplayVal] = useState(0);
+  const rafRef = useRef(null);
+  const target = parseFloat(value) || 0;
+  const pct = target / 10;
+  const r = (size - 16) / 2;
+  const circumference = 2 * Math.PI * r;
+
+  useEffect(() => {
+    const duration = 1400; const start = performance.now();
+    const tick = (now) => {
+      const elapsed = now - start; const p = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setProgress(eased * pct);
+      setDisplayVal(+(eased * target).toFixed(1));
+      if (p < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [value]);
+
+  const dashOffset = circumference * (1 - progress);
+  const half = size / 2;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute' }}>
+        <circle cx={half} cy={half} r={r} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
+        <circle cx={half} cy={half} r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={dashOffset}
+          style={{ transition: 'stroke-dashoffset 0.1s linear', filter: `drop-shadow(0 0 8px ${color})` }} />
+      </svg>
+      <div style={{ textAlign: 'center', zIndex: 1 }}>
+        <div style={{ fontSize: 36, fontWeight: 800, color, fontFamily: T.fm, lineHeight: 1 }}>{displayVal}</div>
+        <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>/ 10</div>
+      </div>
+    </div>
+  );
+}
+
+/** Staggered fade-up wrapper for analysis sections */
+function FadeSection({ delay = 0, children }) {
+  return (
+    <div style={{ animation: `fadeUp .5s ease ${delay}s both` }}>
+      {children}
+    </div>
+  );
+}
+
 function AnalysisLoader({ onCancel }) {
   const [tipIdx, setTipIdx] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -1071,55 +1122,136 @@ export default function BodyTab({
               </div>
             ) : analysis ? (
               <div>
-                <h2 style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1, marginBottom: 4 }}>Analysis</h2>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
-                  <AnimatedScore value={analysis.rateScore} color={scoreColor(analysis.rateScore)} />
-                  <span style={{ fontSize: 14, color: T.t3, fontFamily: T.fm }}>/10</span>
-                </div>
-                <p style={{ fontSize: 13, color: T.gold, fontFamily: T.fb, lineHeight: 1.5, marginBottom: 12 }}>{analysis.keyObservation}</p>
+                {/* ── Hero: Score Ring + Key Observation ── */}
+                <FadeSection delay={0}>
+                  <div style={{ textAlign: 'center', padding: '8px 0 20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                      <ScoreRing value={analysis.rateScore} color={scoreColor(analysis.rateScore)} size={140} />
+                    </div>
+                    <h2 style={{ fontFamily: T.fd, fontSize: 26, fontWeight: 300, color: T.t1, letterSpacing: 1, margin: '0 0 14px' }}>Analysis Complete</h2>
+                    {/* Pull-quote key observation */}
+                    <div style={{ position: 'relative', padding: '16px 18px', background: 'rgba(201,168,76,0.03)', borderRadius: 14, borderLeft: `3px solid ${T.gold}` }}>
+                      <p style={{ fontSize: 14, color: T.gold, fontFamily: T.fd, lineHeight: 1.6, margin: 0, fontWeight: 400, fontStyle: 'italic' }}>{analysis.keyObservation}</p>
+                    </div>
+                  </div>
+                </FadeSection>
+
+                {/* ── Compared to Last ── */}
                 {analysis.comparedToLast && analysis.comparedToLast !== 'First check-in' && analysis.comparedToLast !== 'Baseline established' && (
-                  <div style={{ ...goldCard, padding: '12px 14px', marginBottom: 14 }}>
-                    <p style={{ fontSize: 12, color: T.gold, fontFamily: T.fd, fontStyle: 'italic', lineHeight: 1.5, fontWeight: 400, margin: 0 }}>{analysis.comparedToLast}</p>
-                  </div>
+                  <FadeSection delay={0.1}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', marginBottom: 16, background: 'linear-gradient(135deg, rgba(201,168,76,0.04), rgba(0,210,180,0.03))', border: '1px solid rgba(201,168,76,0.1)', borderRadius: 12 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{'\u2192'}</span>
+                      <p style={{ fontSize: 13, color: T.t1, fontFamily: T.fb, lineHeight: 1.55, fontWeight: 400, margin: 0 }}>{analysis.comparedToLast}</p>
+                    </div>
+                  </FadeSection>
                 )}
-                {parseWarning && <div style={{ ...S.infoBox, marginBottom: 12, marginTop: 0 }}>{parseWarning}</div>}
-                <div style={sectionLabel}>Regional Assessment</div>
-                {renderRegionalRows(analysis, false)}
-                {analysis.injectionSites && analysis.injectionSites !== 'none visible' && (
-                  <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(255,180,50,0.06)', border: '1px solid rgba(255,180,50,0.15)', borderRadius: 9 }}>
-                    <span style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Injection Sites</span>
-                    <p style={{ fontSize: 12, color: T.amber, fontFamily: T.fm, marginTop: 4, lineHeight: 1.4 }}>{analysis.injectionSites}</p>
-                  </div>
-                )}
-                {Array.isArray(analysis.flags) && analysis.flags.length > 0 && (
-                  <div style={{ marginTop: 12 }}>{analysis.flags.map((f, i) => <div key={i} style={{ ...S.warning, marginBottom: 4, marginTop: 0 }}>{'\u26A0'} {f}</div>)}</div>
-                )}
-                {analysis.stackAssessment && (
-                  <div style={{ marginTop: 14, padding: '10px 12px', background: 'rgba(0,210,180,0.04)', border: `1px solid rgba(0,210,180,0.15)`, borderRadius: 9 }}>
-                    <span style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Stack Assessment</span>
-                    <p style={{ fontSize: 12, color: T.teal, fontFamily: T.fb, marginTop: 4, lineHeight: 1.5 }}>{analysis.stackAssessment}</p>
-                  </div>
-                )}
-                {Array.isArray(analysis.peptideRecommendations) && analysis.peptideRecommendations.length > 0 && (
-                  <div style={{ marginTop: 14 }}>
-                    <div style={sectionLabel}>Peptide Recommendations</div>
-                    {analysis.peptideRecommendations.map((rec, i) => {
-                      const priorityColor = rec.priority === 'high' ? T.gold : rec.priority === 'medium' ? T.teal : T.t3;
-                      const priorityBg = rec.priority === 'high' ? 'rgba(201,168,76,0.06)' : rec.priority === 'medium' ? 'rgba(0,210,180,0.04)' : 'rgba(140,160,180,0.04)';
+
+                {parseWarning && <div style={{ ...S.infoBox, marginBottom: 14, marginTop: 0 }}>{parseWarning}</div>}
+
+                {/* ── Regional Assessment Cards ── */}
+                <FadeSection delay={0.15}>
+                  <div style={{ fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10, paddingLeft: 2 }}>Regional Assessment</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
+                    {REGION_FIELDS.map(([label, key]) => [label, analysis[key]]).filter(([, v]) => v && v !== 'not visible').map(([label, value], idx) => {
+                      const sc = sentimentColor(value);
+                      const isPositive = sc === T.teal;
+                      const isConcern = sc === T.amber;
+                      const accentColor = isPositive ? 'rgba(0,210,180,0.4)' : isConcern ? 'rgba(255,180,50,0.4)' : 'rgba(240,236,228,0.08)';
+                      const bgColor = isPositive ? 'rgba(0,210,180,0.03)' : isConcern ? 'rgba(255,180,50,0.03)' : 'rgba(255,255,255,0.015)';
+                      // Body Fat and Muscle Status get full-width
+                      const isWide = label === 'Body Fat' || label === 'Muscle Status';
                       return (
-                        <div key={i} style={{ padding: '10px 12px', marginBottom: 6, background: priorityBg, border: `1px solid ${rec.priority === 'high' ? T.goldM : rec.priority === 'medium' ? 'rgba(0,210,180,0.15)' : T.border}`, borderRadius: 9 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{rec.compound}{rec.alreadyInStack ? ' \u2713' : ''}</span>
-                            <span style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: priorityColor, fontFamily: T.fm, fontWeight: 600 }}>{rec.priority}</span>
-                          </div>
-                          {rec.category && <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{rec.category}</span>}
-                          <p style={{ fontSize: 11, color: T.t2, fontFamily: T.fb, marginTop: 4, lineHeight: 1.4 }}>{rec.rationale}</p>
+                        <div key={label} style={{
+                          gridColumn: isWide ? '1 / -1' : undefined,
+                          padding: '10px 12px', background: bgColor,
+                          border: `1px solid ${isPositive ? 'rgba(0,210,180,0.12)' : isConcern ? 'rgba(255,180,50,0.12)' : T.border}`,
+                          borderRadius: 10, borderLeft: `3px solid ${accentColor}`,
+                        }}>
+                          <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>{label}</div>
+                          <div style={{ fontSize: 12, color: sc, fontFamily: T.fb, lineHeight: 1.45 }}>{value}</div>
                         </div>
                       );
                     })}
                   </div>
+                </FadeSection>
+
+                {/* ── Injection Sites ── */}
+                {analysis.injectionSites && analysis.injectionSites !== 'none visible' && (
+                  <FadeSection delay={0.2}>
+                    <div style={{ padding: '12px 14px', marginBottom: 16, background: 'rgba(255,180,50,0.03)', border: '1px solid rgba(255,180,50,0.12)', borderRadius: 12, borderLeft: '3px solid rgba(255,180,50,0.4)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                        <span style={{ fontSize: 12 }}>{'\uD83D\uDC89'}</span>
+                        <span style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Injection Sites</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: T.amber, fontFamily: T.fb, marginTop: 0, lineHeight: 1.5, margin: 0 }}>{analysis.injectionSites}</p>
+                    </div>
+                  </FadeSection>
                 )}
-                <button onClick={resetForm} style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center', marginTop: 16 }}>Done</button>
+
+                {/* ── Flags ── */}
+                {Array.isArray(analysis.flags) && analysis.flags.length > 0 && (
+                  <FadeSection delay={0.25}>
+                    <div style={{ marginBottom: 16 }}>
+                      {analysis.flags.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 4, background: 'rgba(220,80,80,0.04)', border: '1px solid rgba(220,80,80,0.15)', borderRadius: 10 }}>
+                          <span style={{ fontSize: 13, flexShrink: 0 }}>{'\u26A0'}</span>
+                          <span style={{ fontSize: 12, color: 'rgba(220,80,80,0.85)', fontFamily: T.fb, lineHeight: 1.45 }}>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </FadeSection>
+                )}
+
+                {/* ── Stack Assessment ── */}
+                {analysis.stackAssessment && (
+                  <FadeSection delay={0.3}>
+                    <div style={{ padding: '14px 16px', marginBottom: 16, background: 'rgba(0,210,180,0.025)', border: '1px solid rgba(0,210,180,0.12)', borderRadius: 12, borderLeft: '3px solid rgba(0,210,180,0.4)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 12 }}>{'\u2261'}</span>
+                        <span style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Stack Assessment</span>
+                      </div>
+                      <p style={{ fontSize: 13, color: T.teal, fontFamily: T.fb, marginTop: 0, lineHeight: 1.55, margin: 0 }}>{analysis.stackAssessment}</p>
+                    </div>
+                  </FadeSection>
+                )}
+
+                {/* ── Peptide Recommendations ── */}
+                {Array.isArray(analysis.peptideRecommendations) && analysis.peptideRecommendations.length > 0 && (
+                  <FadeSection delay={0.35}>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10, paddingLeft: 2 }}>Recommendations</div>
+                      {analysis.peptideRecommendations.map((rec, i) => {
+                        const priorityColor = rec.priority === 'high' ? T.gold : rec.priority === 'medium' ? T.teal : T.t3;
+                        const dotColor = rec.priority === 'high' ? T.gold : rec.priority === 'medium' ? T.teal : 'rgba(140,160,180,0.4)';
+                        const borderColor = rec.priority === 'high' ? 'rgba(201,168,76,0.15)' : rec.priority === 'medium' ? 'rgba(0,210,180,0.12)' : T.border;
+                        const bgColor = rec.priority === 'high' ? 'rgba(201,168,76,0.025)' : rec.priority === 'medium' ? 'rgba(0,210,180,0.02)' : 'rgba(255,255,255,0.015)';
+                        return (
+                          <div key={i} style={{
+                            padding: '12px 14px', marginBottom: 8, background: bgColor,
+                            border: `1px solid ${borderColor}`, borderRadius: 12,
+                            backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                              <div style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0, boxShadow: `0 0 6px ${dotColor}` }} />
+                              <span style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb, flex: 1 }}>{rec.compound}</span>
+                              {rec.alreadyInStack && <span style={{ fontSize: 9, color: T.teal, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>In Stack</span>}
+                            </div>
+                            {rec.category && (
+                              <div style={{ display: 'inline-block', padding: '2px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 6, marginBottom: 6 }}>
+                                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{rec.category}</span>
+                              </div>
+                            )}
+                            <p style={{ fontSize: 12, color: T.t2, fontFamily: T.fb, marginTop: 2, lineHeight: 1.5, margin: 0 }}>{rec.rationale}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </FadeSection>
+                )}
+
+                <FadeSection delay={0.4}>
+                  <button onClick={resetForm} style={{ ...S.logBtn, width: '100%', padding: '14px', textAlign: 'center', fontSize: 14, borderRadius: 12, marginTop: 4 }}>Done</button>
+                </FadeSection>
               </div>
             ) : null}
           </div>

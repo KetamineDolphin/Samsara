@@ -32,7 +32,20 @@ function saveKey(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    // storage full
+    // Quota exceeded — try to save anyway after trimming
+    console.warn('Storage quota warning for key:', key);
+    try {
+      // Attempt emergency save — trim old entries from arrays
+      const str = JSON.stringify(value);
+      if (str.length > 500000 && Array.isArray(value)) {
+        // Keep last 500 entries to free space
+        const trimmed = value.slice(-500);
+        localStorage.setItem(key, JSON.stringify(trimmed));
+        console.warn('Trimmed ' + key + ' to last 500 entries');
+      }
+    } catch (e2) {
+      console.error('Storage save failed completely:', key);
+    }
   }
 }
 
@@ -45,6 +58,60 @@ export function useStorage(key, fallback) {
   }, [storageKey, value]);
 
   return [value, setValue];
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Storage health monitoring
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/** Get localStorage usage stats */
+export function getStorageHealth() {
+  let totalBytes = 0;
+  const breakdown = {};
+  const keyNames = Object.entries(KEYS);
+
+  for (const [name, key] of keyNames) {
+    try {
+      const raw = localStorage.getItem(key);
+      const bytes = raw ? raw.length * 2 : 0; // JS strings are UTF-16
+      totalBytes += bytes;
+      breakdown[name] = { bytes, kb: (bytes / 1024).toFixed(1), count: null };
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) breakdown[name].count = parsed.length;
+        } catch {}
+      }
+    } catch {}
+  }
+
+  // Estimate total localStorage capacity (~5MB on most browsers)
+  const capacityBytes = 5 * 1024 * 1024;
+  const usedPct = (totalBytes / capacityBytes) * 100;
+  const healthy = usedPct < 70;
+  const warning = usedPct >= 70 && usedPct < 90;
+  const critical = usedPct >= 90;
+
+  return {
+    totalBytes,
+    totalKb: (totalBytes / 1024).toFixed(1),
+    totalMb: (totalBytes / (1024 * 1024)).toFixed(2),
+    usedPct: usedPct.toFixed(1),
+    healthy,
+    warning,
+    critical,
+    breakdown,
+    status: critical ? 'critical' : warning ? 'warning' : 'healthy',
+  };
+}
+
+/** React hook for storage health - checks on mount and when deps change */
+export function useStorageHealth(deps = []) {
+  const [health, setHealth] = useState(() => getStorageHealth());
+  useEffect(() => {
+    setHealth(getStorageHealth());
+  }, deps);
+  return health;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

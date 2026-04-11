@@ -440,7 +440,18 @@ export default function BodyTab({
   /* --- view state --- */
   const [activeView, setActiveView] = useState('Timeline');
   const [step, setStep] = useState(1);
-  const [stats, setStats] = useState({ date: getToday(), day: '', weight: '', waist: '' });
+  // Pre-fill stats from last checkin if available
+  const lastCheckin = checkins.length > 0 ? checkins[checkins.length - 1] : null;
+  const [stats, setStats] = useState(() => {
+    const dayNum = lastCheckin ? String((parseInt(lastCheckin.day) || 0) + 7) : '';
+    return { date: getToday(), day: dayNum, weight: '', waist: '' };
+  });
+  const hasLastStats = lastCheckin && lastCheckin.weight && lastCheckin.waist;
+  const prefillFromLast = useCallback(() => {
+    if (!lastCheckin) return;
+    const dayNum = String((parseInt(lastCheckin.day) || 0) + 7);
+    setStats({ date: getToday(), day: dayNum, weight: String(lastCheckin.weight), waist: String(lastCheckin.waist) });
+  }, [lastCheckin]);
   const [photos, setPhotos] = useState({ front: null, side: null, back: null, flex: null });
   const [thumbs, setThumbs] = useState({ front: null, side: null, back: null, flex: null });
   const [compressing, setCompressing] = useState(null);
@@ -562,10 +573,15 @@ export default function BodyTab({
     setAnalyzing(false);
   }, [photos, stats, stack, checkins, processAnalysisResponse]);
 
-  // Gate analysis behind AIDisclaimer consent
+  // Gate analysis behind AIDisclaimer consent (skip if user has previous AI analyses)
+  const hasConsentedBefore = checkins.some(c => c.analysis);
   const handleAnalyzeClick = useCallback(() => {
-    setShowAIDisclaimer(true);
-  }, []);
+    if (hasConsentedBefore) {
+      runAnalysis();
+    } else {
+      setShowAIDisclaimer(true);
+    }
+  }, [hasConsentedBefore, runAnalysis]);
 
   const handleDisclaimerProceed = useCallback(() => {
     setShowAIDisclaimer(false);
@@ -975,16 +991,40 @@ export default function BodyTab({
         {step === 1 && (
           <div>
             <h2 style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1, marginBottom: 16 }}>Stats</h2>
+            {/* Quick pre-fill from last check-in */}
+            {hasLastStats && !stats.weight && !stats.waist && (
+              <button onClick={() => { prefillFromLast(); }} style={{ ...S.card, padding: '12px 14px', marginBottom: 14, width: '100%', border: '1px solid ' + T.goldM, background: T.goldS, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>{'\u21BB'}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.gold, fontFamily: T.fb }}>Same as last time?</div>
+                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{lastCheckin.weight} lbs {'\u00B7'} {lastCheckin.waist}" waist {'\u00B7'} Day {(parseInt(lastCheckin.day) || 0) + 7}</div>
+                </div>
+              </button>
+            )}
+            {/* First check-in guidance */}
+            {checkins.length === 0 && !stats.weight && (
+              <div style={{ ...S.card, padding: '12px 14px', marginBottom: 14, borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.04)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginBottom: 4 }}>{'\u2139'} Your Day 1 Baseline</div>
+                <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>This first check-in establishes your starting point. Weigh yourself in the morning before eating, and measure your waist at the navel.</div>
+              </div>
+            )}
             {[['Day Number', 'day'], ['Weight (lbs)', 'weight'], ['Waist (inches)', 'waist']].map(([l, k]) => (
               <div key={k} style={{ marginBottom: 14 }}>
                 <label style={S.label}>{l}</label>
                 <input type="number" inputMode="decimal" value={stats[k]} onChange={e => setStats(p => ({ ...p, [k]: e.target.value }))} style={{ ...S.input, width: '100%' }} />
               </div>
             ))}
-            <button onClick={() => setStep(2)} disabled={!stats.weight || !stats.waist}
-              style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center', opacity: stats.weight && stats.waist ? 1 : 0.4 }}>
-              Next: Photos {'\u2192'}
-            </button>
+            {hasLastStats && stats.weight && stats.waist ? (
+              <button onClick={() => setStep(2)}
+                style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center' }}>
+                Skip to Photos {'\u2192'}
+              </button>
+            ) : (
+              <button onClick={() => setStep(2)} disabled={!stats.weight || !stats.waist}
+                style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center', opacity: stats.weight && stats.waist ? 1 : 0.4 }}>
+                Next: Photos {'\u2192'}
+              </button>
+            )}
           </div>
         )}
 

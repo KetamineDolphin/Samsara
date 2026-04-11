@@ -168,7 +168,14 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
       <header style={S.header}><SamsaraSymbol size={56} detail="full" /><h1 style={S.brand}>SAMSARA</h1><p style={S.sub}>Peptide Calculator</p></header>
-      <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>
+      {presets.length > 0 && <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>}
+      {/* First-use guidance */}
+      {presets.length === 0 && !vialMg && (
+        <div style={{ ...S.card, padding: '14px 16px', marginBottom: 13, borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.04)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginBottom: 4 }}>{'\u2139'} Your First Calculation</div>
+          <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>Enter your vial size, water volume, and desired dose. Samsara will calculate exactly how many units to draw on your syringe. Add compounds in the Profile tab to see presets here.</div>
+        </div>
+      )}
       <div style={S.card}>
         <div style={S.field}><label style={S.label}>Vial Size</label><div style={S.frow}><input type="number" inputMode="decimal" value={vialMg} onChange={e => set("vialMg", e.target.value)} style={S.input} /><span style={S.tag}>mg</span></div></div>
         <div style={S.divider} />

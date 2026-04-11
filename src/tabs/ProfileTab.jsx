@@ -5,7 +5,7 @@ import { CAT_C } from '../utils/tokens';
 import S from '../utils/styles';
 import LIB, { FREQ_META } from '../data/library';
 import { makeId, fmtDose, doseMgOf, usableDoses } from '../utils/helpers';
-import { exportAllData, importAllData, clearAllData, getStorageSize, getPhotoStorageSize } from '../hooks/useStorage';
+import { exportAllData, importAllData, clearAllData, getStorageSize, getPhotoStorageSize, getStorageHealth } from '../hooks/useStorage';
 import { analyzeStack, getCompoundInsights } from '../data/interactions';
 import { calculateTrajectory } from '../data/analytics';
 import { isSupported, requestPermission } from '../utils/notifications';
@@ -637,6 +637,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   };
 
   const storageInfo = getStorageSize();
+  const storageHealth = getStorageHealth();
 
   // Full-screen scrollable modal
   const renderModal = (isEdit) => {
@@ -1464,12 +1465,38 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
         <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Data Management</div>
-          <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginBottom: 4 }}>
-            Local storage: {parseFloat(storageInfo.kb) > 1024 ? storageInfo.mb + ' MB' : storageInfo.kb + ' KB'}
+          {/* Storage health bar */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+              <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>
+                Storage: {parseFloat(storageInfo.kb) > 1024 ? storageInfo.mb + ' MB' : storageInfo.kb + ' KB'} of ~5 MB
+              </span>
+              <span style={{ fontSize: 10, fontFamily: T.fm, fontWeight: 600, color: storageHealth.critical ? 'rgba(220,80,80,0.9)' : storageHealth.warning ? T.amber : '#5cb870' }}>
+                {storageHealth.status === 'critical' ? '\u26A0 Critical' : storageHealth.status === 'warning' ? '\u26A0 Getting Full' : '\u2713 Healthy'}
+              </span>
+            </div>
+            <div style={{ width: '100%', height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+              <div style={{
+                width: Math.min(parseFloat(storageHealth.usedPct), 100) + '%',
+                height: '100%', borderRadius: 3,
+                background: storageHealth.critical ? 'rgba(220,80,80,0.7)' : storageHealth.warning ? 'rgba(201,168,76,0.6)' : 'rgba(92,184,112,0.5)',
+                transition: 'width .4s ease',
+              }} />
+            </div>
+            {storageHealth.critical && (
+              <div style={{ fontSize: 11, color: 'rgba(220,80,80,0.8)', fontFamily: T.fm, marginTop: 6, lineHeight: 1.5 }}>
+                {'\u26A0'} Storage is nearly full. Export a backup and consider clearing old data to avoid data loss.
+              </div>
+            )}
+            {storageHealth.warning && !storageHealth.critical && (
+              <div style={{ fontSize: 11, color: T.amber, fontFamily: T.fm, marginTop: 6, lineHeight: 1.5 }}>
+                Storage is filling up ({storageHealth.usedPct}% used). Consider exporting a backup soon.
+              </div>
+            )}
           </div>
           {photoStorageInfo && photoStorageInfo.count > 0 && (
             <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginBottom: 4 }}>
-              Photos: {photoStorageInfo.count} saved ({photoStorageInfo.mb} MB)
+              Photos: {photoStorageInfo.count} saved ({photoStorageInfo.mb} MB) — stored separately in IndexedDB
             </div>
           )}
           <div style={{ height: 8 }} />

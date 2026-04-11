@@ -7,7 +7,8 @@ import { TIMING_GROUPS, FREQ_META } from '../data/library';
 import { getToday, getNow, fmtDose, daysNextWeekly, getWeekStart, concOf, unitsOf, usableDoses, vialAge, vialFreshness, suggestNextSite, getEscalationStatus, makeId, SITE_LIST } from '../utils/helpers';
 import { BodyMap } from '../components/Shared';
 import BodyModel3D from '../components/BodyModel3D';
-// Pro gating removed — all features unlocked
+import LIB from '../data/library';
+import { analyzeStack } from '../data/interactions';
 
 /* ── Tissue quality analysis ─────────────────────────── */
 function analyzeSites(siteHistory) {
@@ -107,7 +108,7 @@ function RetaCard({ compound, logged, onLog }) {
 }
 
 /* ── TodayView with site alert banners ─────────────────────────── */
-function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis }) {
+function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheckin }) {
   const t = getToday();
   const groups = {};
   TIMING_GROUPS.forEach(g => { groups[g.id] = []; });
@@ -116,6 +117,19 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis }) {
     if (!groups[group]) groups[group] = [];
     groups[group].push(c);
   });
+
+  // Compute interaction insights for the whole stack
+  const stackAnalysis = useMemo(() => stack.length > 1 ? analyzeStack(stack, LIB) : null, [stack]);
+  // Build per-compound interaction map: compoundLibId → relevant notes
+  const interactionMap = useMemo(() => {
+    if (!stackAnalysis) return {};
+    const map = {};
+    const addNote = (libId, item) => { if (!map[libId]) map[libId] = []; map[libId].push(item); };
+    stackAnalysis.synergies.forEach(s => { addNote(s.from, { type: 'synergy', note: s.note }); });
+    stackAnalysis.warnings.forEach(w => { addNote(w.from, { type: w.type, severity: w.severity, note: w.note }); });
+    stackAnalysis.timingNotes.forEach(t => { addNote(t.from, { type: 'timing', note: t.note }); });
+    return map;
+  }, [stackAnalysis]);
 
   // Derive site alerts from analysis
   const restSites = [];
@@ -160,22 +174,58 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2, letterSpacing: 1 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-        <button onClick={onOpenSites} style={{ ...S.pill, fontSize: 10, padding: '4px 10px', borderColor: T.goldM, color: T.gold }}>Sites</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {onQuickCheckin && <button onClick={onQuickCheckin} style={{ ...S.pill, fontSize: 10, padding: '4px 10px', borderColor: 'rgba(0,210,180,0.3)', color: T.teal }}>Check-in {'\u2192'}</button>}
+          <button onClick={onOpenSites} style={{ ...S.pill, fontSize: 10, padding: '4px 10px', borderColor: T.goldM, color: T.gold }}>Sites</button>
+        </div>
       </div>
+
+      {/* Empty state for first-time users */}
+      {stack.length === 0 && (
+        <div style={{ ...S.card, padding: '20px 16px', textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.3 }}>{'\u2295'}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.t1, fontFamily: T.fb, marginBottom: 6 }}>Add Your First Compound</div>
+          <div style={{ fontSize: 12, color: T.t3, fontFamily: T.fm, lineHeight: 1.6 }}>Head to the Profile tab and browse the library to add compounds to your stack. They'll appear here ready to log.</div>
+        </div>
+      )}
+
+      {/* First dose guidance */}
+      {stack.length > 0 && logs.length === 0 && (
+        <div style={{ ...S.card, padding: '12px 14px', marginBottom: 12, borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.04)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginBottom: 4 }}>{'\u2139'} Log Your First Dose</div>
+          <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>Tap "Log" after each injection to build your protocol history. Samsara tracks streaks, adherence, and helps you stay consistent.</div>
+        </div>
+      )}
+
       {TIMING_GROUPS.map(g => {
         const compounds = groups[g.id];
         if (!compounds || compounds.length === 0) return null;
         return (
           <div key={g.id}>
-            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6, marginTop: 8 }}>{g.icon} {g.label}</div>
+            <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6, marginTop: 8 }}>{g.icon} {g.label}</div>
             {compounds.map(c => {
               const isW = c.frequency === 'weekly';
               const logged = isW ? logs.find(l => l.cid === c.id && l.date >= getWeekStart()) : logs.find(l => l.cid === c.id && l.date === t);
+              const cNotes = interactionMap[c.libId] || [];
               if (isW) return <RetaCard key={c.id} compound={c} logged={logged} onLog={onLog} />;
               return (
-                <div key={c.id} style={{ ...S.trackRow, ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={S.trackName}>{c.name}</div><div style={S.trackMeta}>{fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u</div></div>
-                  {logged ? <div style={S.loggedBadge}><span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 18 }}>{'\u2713'}</span><span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span></div> : <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(c); }} style={S.logBtn} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log</button>}
+                <div key={c.id}>
+                  <div style={{ ...S.trackRow, ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
+                    <div style={{ flex: 1, minWidth: 0 }}><div style={S.trackName}>{c.name}</div><div style={S.trackMeta}>{fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u</div></div>
+                    {logged ? <div style={S.loggedBadge}><span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 18 }}>{'\u2713'}</span><span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span></div> : <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(c); }} style={S.logBtn} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log</button>}
+                  </div>
+                  {/* Interaction notes shown at log time */}
+                  {!logged && cNotes.length > 0 && (
+                    <div style={{ marginTop: -4, marginBottom: 8, paddingLeft: 12, paddingRight: 12 }}>
+                      {cNotes.slice(0, 2).map((n, i) => {
+                        const isGood = n.type === 'synergy';
+                        const isDanger = n.severity === 'danger' || n.type === 'conflict';
+                        const icon = isGood ? '\u25CF' : isDanger ? '\u25CF' : '\u25CF';
+                        const color = isGood ? '#5cb870' : isDanger ? 'rgba(220,80,80,0.85)' : T.amber;
+                        return <div key={i} style={{ fontSize: 11, color, fontFamily: T.fm, lineHeight: 1.5, padding: '2px 0', display: 'flex', gap: 6, alignItems: 'flex-start' }}><span style={{ fontSize: 6, marginTop: 5, flexShrink: 0 }}>{icon}</span><span>{n.note}</span></div>;
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1092,7 +1142,7 @@ function LogView({ logs: rawLogs }) {
 }
 
 /* ── TrackTab root with multi-step site log flow ─────────────────────────── */
-export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile, onUpgrade }) {
+export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile, onNavigate }) {
   const [sv, setSv] = useState('today');
   const [siteLogStep, setSiteLogStep] = useState(null);
   const [siteLogData, setSiteLogData] = useState({ siteId: null, compound: '', tissueQuality: 3, notes: '' });
@@ -1148,7 +1198,7 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
     <div>
       <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TRACK</h1><p style={S.sub}>Protocol Management</p></header>
       <div style={S.segWrap}>{[{ k: 'today', l: 'Today' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
-      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} />}
+      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('BODY') : null} />}
       {sv === 'vials' && <VialsView vials={vials} logs={logs} onNewVial={handleNewVial} stack={stack} />}
       {sv === 'timeline' && <TimelineView logs={logs} stack={stack} checkins={checkins} profile={profile} />}
       {sv === 'sites' && <SitesView siteHistory={siteHistory} onLogSite={handleLogSite} stack={stack} siteAnalysis={siteAnalysis} siteLogStep={siteLogStep} siteLogData={siteLogData} onSiteLogStepAction={handleSiteLogStepAction} />}

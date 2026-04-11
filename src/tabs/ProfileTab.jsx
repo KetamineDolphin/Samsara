@@ -5,10 +5,12 @@ import { CAT_C } from '../utils/tokens';
 import S from '../utils/styles';
 import LIB, { FREQ_META } from '../data/library';
 import { makeId, fmtDose, doseMgOf, usableDoses } from '../utils/helpers';
-import { exportAllData, importAllData, clearAllData, getStorageSize } from '../hooks/useStorage';
+import { exportAllData, importAllData, clearAllData, getStorageSize, getPhotoStorageSize } from '../hooks/useStorage';
 import { analyzeStack, getCompoundInsights } from '../data/interactions';
 import { calculateTrajectory } from '../data/analytics';
 import { isSupported, requestPermission } from '../utils/notifications';
+// Pro gating removed — all features unlocked
+import { AboutDisclaimer } from '../components/Disclaimers';
 
 // Pie chart category colors (explicit hex for SVG)
 const PIE_COLORS = {
@@ -73,6 +75,24 @@ const MARKET_PRICES = {
   'cortagen': { low: 60, high: 100, suggest: 80 },
   'motsc': { low: 80, high: 140, suggest: 110 },
   'foxo4dri': { low: 100, high: 200, suggest: 150 },
+  'oxytocin': { low: 40, high: 80, suggest: 60 },
+  'ara290': { low: 60, high: 120, suggest: 90 },
+  'cagrilintide': { low: 80, high: 150, suggest: 115 },
+  'triple_threat': { low: 120, high: 200, suggest: 160 },
+  'tes_ipa_blend': { low: 80, high: 140, suggest: 110 },
+  'bronchogen': { low: 50, high: 90, suggest: 70 },
+  'cardiogen': { low: 50, high: 90, suggest: 70 },
+  'cartalax': { low: 50, high: 90, suggest: 70 },
+  'chonluten': { low: 50, high: 90, suggest: 70 },
+  'livagen': { low: 50, high: 90, suggest: 70 },
+  'ovagen': { low: 50, high: 90, suggest: 70 },
+  'pancragen': { low: 50, high: 90, suggest: 70 },
+  'prostamax': { low: 50, high: 90, suggest: 70 },
+  'testagen': { low: 50, high: 90, suggest: 70 },
+  'thymagen': { low: 50, high: 90, suggest: 70 },
+  'vesugen': { low: 50, high: 90, suggest: 70 },
+  'vesilute': { low: 50, high: 90, suggest: 70 },
+  'vilon': { low: 50, high: 90, suggest: 70 },
 };
 
 // Price intelligence
@@ -347,7 +367,7 @@ function calcCompoundCosts(c) {
   return { costPerDose, costPerDay, costPerWeek, costPerMonth, costPerYear, vialsPerMonth, doses, perWeek };
 }
 
-export default function ProfileTab({ stack, setStack, profile, setProfile, logs: rawLogs, checkins: rawCheckins, settings, setSettings }) {
+export default function ProfileTab({ stack, setStack, profile, setProfile, logs: rawLogs, checkins: rawCheckins, settings, setSettings, onUpgrade }) {
   const logs = rawLogs || [];
   const checkins = rawCheckins || [];
 
@@ -577,23 +597,38 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     setManualPrices({});
   };
 
-  // Data export
-  const handleExport = () => {
-    const data = exportAllData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `samsara-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click(); URL.revokeObjectURL(url);
+  // Data export (async - includes IndexedDB photos)
+  const [exporting, setExporting] = useState(false);
+  const [photoStorageInfo, setPhotoStorageInfo] = useState(null);
+
+  // Load photo storage size on mount
+  useState(() => {
+    getPhotoStorageSize().then(setPhotoStorageInfo).catch(() => {});
+  });
+
+  const handleExport = async (includePhotos = true) => {
+    setExporting(true);
+    try {
+      const data = await exportAllData(includePhotos);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `samsara-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch (err) {
+      setImportStatus('Export failed: ' + (err.message || 'unknown error'));
+      setTimeout(() => setImportStatus(null), 5000);
+    }
+    setExporting(false);
   };
 
-  // Data import
+  // Data import (async - handles IndexedDB photos)
   const handleImport = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const success = importAllData(ev.target.result);
+    reader.onload = async (ev) => {
+      const success = await importAllData(ev.target.result);
       setImportStatus(success ? 'Data imported. Reload the page to apply.' : 'Import failed - invalid file.');
       setTimeout(() => setImportStatus(null), 5000);
     };
@@ -703,7 +738,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                 <textarea
                   value={importText}
                   onChange={e => setImportText(e.target.value)}
-                  placeholder={'GH Blend: $150\nRetatrutide: $200\nAOD-9604: $65\nBPC-157: $55\n(name: price, one per line)'}
+                  placeholder=""
                   style={{ width: '100%', height: 200, background: 'rgba(0,0,0,0.4)', border: '1px solid ' + T.border, borderRadius: 9, padding: 14, fontSize: 13, color: T.t1, fontFamily: T.fm, resize: 'none', outline: 'none' }}
                 />
                 <button onClick={parseImportText} style={{ ...S.logBtn, width: '100%', padding: '14px', textAlign: 'center', fontSize: 13, marginTop: 12 }}>Parse & Import</button>
@@ -752,7 +787,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                       type='number' inputMode='decimal'
                       value={manualPrices[c.id] !== undefined ? manualPrices[c.id] : (c.pricePerVial || '')}
                       onChange={e => setManualPrices(p => ({ ...p, [c.id]: e.target.value }))}
-                      placeholder={market ? String(market.suggest) : 'Price'}
+                      placeholder=""
                       style={{ ...S.input, width: 80, fontSize: 13, padding: '6px 8px', background: 'rgba(0,0,0,0.4)', color: T.t1, textAlign: 'right' }}
                     />
                   </div>
@@ -1102,7 +1137,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                           value={priceInput}
                           onChange={e => setPriceInput(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') savePriceForCompound(c.id, priceInput); }}
-                          placeholder={market ? String(market.suggest) : 'Enter price'}
+                          placeholder=""
                           style={{ ...S.input, flex: 1, fontSize: 13, padding: '6px 8px', background: 'rgba(0,0,0,0.4)', color: T.t1 }}
                         />
                         <button onClick={() => savePriceForCompound(c.id, priceInput)}
@@ -1247,8 +1282,8 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
       </div>}
 
       {sv === 'library' && <div>
-        <div style={{ marginBottom: 12 }}><input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder='Search...' style={{ ...S.input, width: '100%', fontSize: 14, padding: '11px 14px', background: 'rgba(0,0,0,0.3)', color: T.t1 }} /></div>
-        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 10, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
+        <div style={{ marginBottom: 12 }}><input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="" style={{ ...S.input, width: '100%', fontSize: 14, padding: '11px 14px', background: 'rgba(0,0,0,0.3)', color: T.t1 }} /></div>
+        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
         {filtered.map(p => { const cc = CAT_C[p.category] || T.gold; const added = inStack.has(p.id);
           const insights = stack.length > 0 ? getCompoundInsights(p.id, stack, LIB) : [];
           const hasSynergy = insights.some(r => r.type === 'synergy');
@@ -1260,7 +1295,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
             <div key={p.id} style={{ marginBottom: 6 }}>
               <div onClick={() => setExpandedLibId(isExpanded ? null : p.id)} style={{ ...S.card, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderBottomLeftRadius: isExpanded ? 0 : undefined, borderBottomRightRadius: isExpanded ? 0 : undefined }}>
                 <div style={{ width: 3, height: 24, borderRadius: 2, background: cc, opacity: 0.6 }} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 13, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>{dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}</div><div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 1 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 15, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>{dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}</div><div style={{ fontSize: 12, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div></div>
                 <span style={{ fontSize: 14, color: T.t3, transition: 'transform .3s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>{'\u25BE'}</span>
               </div>
               <div style={{ maxHeight: isExpanded ? 2000 : 0, overflow: 'hidden', transition: 'max-height .4s ease' }}>
@@ -1268,34 +1303,34 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                   {/* Evidence rating */}
                   {p.evidence != null && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 13 }}>
-                      <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Evidence</span>
+                      <span style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Evidence</span>
                       <div style={{ display: 'flex', gap: 3 }}>
-                        {[1,2,3,4,5].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: i <= p.evidence ? T.gold : 'rgba(255,255,255,0.08)' }} />)}
+                        {[1,2,3,4,5].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i <= p.evidence ? T.gold : 'rgba(255,255,255,0.08)' }} />)}
                       </div>
                     </div>
                   )}
                   {/* Half-life & peak chips */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 13 }}>
-                    {p.halfLifeHours != null && <span style={{ fontSize: 10, fontFamily: T.fm, color: T.teal, background: 'rgba(0,210,180,0.08)', padding: '3px 8px', borderRadius: 8 }}>t½ {p.halfLifeHours >= 24 ? (p.halfLifeHours / 24).toFixed(0) + 'd' : p.halfLifeHours + 'h'}</span>}
-                    {p.peakPlasmaMinutes != null && <span style={{ fontSize: 10, fontFamily: T.fm, color: T.purple, background: 'rgba(150,120,220,0.08)', padding: '3px 8px', borderRadius: 8 }}>peak {p.peakPlasmaMinutes >= 60 ? (p.peakPlasmaMinutes / 60).toFixed(1) + 'h' : p.peakPlasmaMinutes + 'min'}</span>}
-                    {p.administration && <span style={{ fontSize: 10, fontFamily: T.fm, color: T.t2, background: 'rgba(255,255,255,0.04)', padding: '3px 8px', borderRadius: 8 }}>{p.administration}</span>}
+                    {p.halfLifeHours != null && <span style={{ fontSize: 12, fontFamily: T.fm, color: T.teal, background: 'rgba(0,210,180,0.08)', padding: '4px 10px', borderRadius: 8 }}>t½ {p.halfLifeHours >= 24 ? (p.halfLifeHours / 24).toFixed(0) + 'd' : p.halfLifeHours + 'h'}</span>}
+                    {p.peakPlasmaMinutes != null && <span style={{ fontSize: 12, fontFamily: T.fm, color: T.purple, background: 'rgba(150,120,220,0.08)', padding: '4px 10px', borderRadius: 8 }}>peak {p.peakPlasmaMinutes >= 60 ? (p.peakPlasmaMinutes / 60).toFixed(1) + 'h' : p.peakPlasmaMinutes + 'min'}</span>}
+                    {p.administration && <span style={{ fontSize: 12, fontFamily: T.fm, color: T.t2, background: 'rgba(255,255,255,0.04)', padding: '4px 10px', borderRadius: 8 }}>{p.administration}</span>}
                   </div>
                   {/* Mechanism */}
                   {p.mechanism && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Mechanism</div>
-                      <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.mechanism}</div>
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Mechanism</div>
+                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.mechanism}</div>
                     </div>
                   )}
                   {/* Timeline - horizontal scroll */}
                   {timelineKeys.length > 0 && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Timeline</div>
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Timeline</div>
                       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' }}>
                         {timelineKeys.map(k => (
-                          <div key={k} style={{ minWidth: 140, maxWidth: 180, flexShrink: 0, background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: '8px 10px', border: `1px solid ${T.border}` }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: T.gold, fontFamily: T.fm, marginBottom: 3, textTransform: 'capitalize' }}>{k.replace('week', 'Week ')}</div>
-                            <div style={{ fontSize: 10, color: T.t2, fontFamily: T.fb, lineHeight: 1.4 }}>{p.timeline[k]}</div>
+                          <div key={k} style={{ minWidth: 150, maxWidth: 200, flexShrink: 0, background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: '10px 12px', border: `1px solid ${T.border}` }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: T.gold, fontFamily: T.fm, marginBottom: 4, textTransform: 'capitalize' }}>{k.replace('week', 'Week ')}</div>
+                            <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.timeline[k]}</div>
                           </div>
                         ))}
                       </div>
@@ -1304,46 +1339,46 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                   {/* Side effects - amber pills */}
                   {p.sideEffects && p.sideEffects.length > 0 && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Side Effects</div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {p.sideEffects.map((se, i) => <span key={i} style={{ fontSize: 10, fontFamily: T.fm, color: T.warnT, background: T.warn, padding: '3px 8px', borderRadius: 8 }}>{se}</span>)}
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Side Effects</div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        {p.sideEffects.map((se, i) => <span key={i} style={{ fontSize: 12, fontFamily: T.fm, color: T.warnT, background: T.warn, padding: '4px 10px', borderRadius: 8 }}>{se}</span>)}
                       </div>
                     </div>
                   )}
                   {/* Contraindications - red pills */}
                   {p.contraindications && p.contraindications.length > 0 && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Contraindications</div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {p.contraindications.map((ci, i) => <span key={i} style={{ fontSize: 10, fontFamily: T.fm, color: 'rgba(220,80,80,0.85)', background: 'rgba(220,80,80,0.08)', padding: '3px 8px', borderRadius: 8 }}>{ci}</span>)}
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Contraindications</div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        {p.contraindications.map((ci, i) => <span key={i} style={{ fontSize: 12, fontFamily: T.fm, color: 'rgba(220,80,80,0.85)', background: 'rgba(220,80,80,0.08)', padding: '4px 10px', borderRadius: 8 }}>{ci}</span>)}
                       </div>
                     </div>
                   )}
                   {/* Cycling protocol - purple card */}
                   {p.cyclingProtocol && (
-                    <div style={{ marginBottom: 13, background: 'rgba(150,120,220,0.06)', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(150,120,220,0.12)' }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.purple, fontFamily: T.fm, marginBottom: 4 }}>Cycling Protocol</div>
-                      <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.cyclingProtocol}</div>
+                    <div style={{ marginBottom: 13, background: 'rgba(150,120,220,0.06)', borderRadius: 8, padding: '12px 14px', border: '1px solid rgba(150,120,220,0.12)' }}>
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.purple, fontFamily: T.fm, marginBottom: 4 }}>Cycling Protocol</div>
+                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.cyclingProtocol}</div>
                     </div>
                   )}
                   {/* Synergies - teal card */}
                   {p.synergiesNotes && (
-                    <div style={{ marginBottom: 13, background: 'rgba(0,210,180,0.06)', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(0,210,180,0.12)' }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, marginBottom: 4 }}>Synergies</div>
-                      <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.synergiesNotes}</div>
+                    <div style={{ marginBottom: 13, background: 'rgba(0,210,180,0.06)', borderRadius: 8, padding: '12px 14px', border: '1px solid rgba(0,210,180,0.12)' }}>
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, marginBottom: 4 }}>Synergies</div>
+                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.synergiesNotes}</div>
                     </div>
                   )}
                   {/* Research notes */}
                   {p.researchNotes && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Research Notes</div>
-                      <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.researchNotes}</div>
+                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Research Notes</div>
+                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.researchNotes}</div>
                     </div>
                   )}
                   {/* Add/Remove button */}
                   <div style={{ marginTop: 4 }}>
-                    {added ? <button onClick={(e) => { e.stopPropagation(); const idx = stack.findIndex(s => s.compoundId === p.id); if (idx >= 0 && window.confirm('Remove ' + p.name + ' from stack?')) { const ns = [...stack]; ns.splice(idx, 1); setStack(ns); } }} style={{ ...S.pill, fontSize: 10, padding: '6px 14px', color: 'rgba(220,80,80,0.7)', borderColor: 'rgba(220,80,80,0.2)', width: '100%', textAlign: 'center' }}>Remove from Stack</button>
-                      : <button onClick={(e) => { e.stopPropagation(); openAdd(p); }} style={{ ...S.pill, fontSize: 10, padding: '6px 14px', borderColor: cc, color: cc, width: '100%', textAlign: 'center' }}>+ Add to Stack</button>}
+                    {added ? <button onClick={(e) => { e.stopPropagation(); const idx = stack.findIndex(s => s.compoundId === p.id); if (idx >= 0 && window.confirm('Remove ' + p.name + ' from stack?')) { const ns = [...stack]; ns.splice(idx, 1); setStack(ns); } }} style={{ ...S.pill, fontSize: 13, padding: '10px 14px', color: 'rgba(220,80,80,0.7)', borderColor: 'rgba(220,80,80,0.2)', width: '100%', textAlign: 'center' }}>Remove from Stack</button>
+                      : <button onClick={(e) => { e.stopPropagation(); openAdd(p); }} style={{ ...S.pill, fontSize: 13, padding: '10px 14px', borderColor: cc, color: cc, width: '100%', textAlign: 'center' }}>+ Add to Stack</button>}
                   </div>
                 </div>
               </div>
@@ -1422,18 +1457,37 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
         <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Data Management</div>
-          <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginBottom: 12 }}>Storage used: {storageInfo.kb} KB</div>
+          <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginBottom: 4 }}>
+            Local storage: {parseFloat(storageInfo.kb) > 1024 ? storageInfo.mb + ' MB' : storageInfo.kb + ' KB'}
+          </div>
+          {photoStorageInfo && photoStorageInfo.count > 0 && (
+            <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginBottom: 4 }}>
+              Photos: {photoStorageInfo.count} saved ({photoStorageInfo.mb} MB)
+            </div>
+          )}
+          <div style={{ height: 8 }} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <button onClick={handleExport} style={{ ...S.logBtn, flex: 1, padding: '10px', textAlign: 'center', fontSize: 11 }}>Export Backup</button>
+            <button onClick={() => handleExport(true)} disabled={exporting} style={{ ...S.logBtn, flex: 1, padding: '10px', textAlign: 'center', fontSize: 11, opacity: exporting ? 0.5 : 1 }}>
+              {exporting ? 'Exporting...' : 'Full Backup'}
+            </button>
             <button onClick={() => fileInputRef.current?.click()} style={{ ...S.newVialBtn, flex: 1, padding: '10px', textAlign: 'center' }}>Import Backup</button>
             <input ref={fileInputRef} type='file' accept='.json' onChange={handleImport} style={{ display: 'none' }} />
           </div>
+          {photoStorageInfo && photoStorageInfo.count > 0 && (
+            <button onClick={() => handleExport(false)} disabled={exporting} style={{ ...S.newVialBtn, width: '100%', marginBottom: 8, fontSize: 10, opacity: exporting ? 0.5 : 1 }}>
+              Export Without Photos (smaller file)
+            </button>
+          )}
           {importStatus && <div style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, marginTop: 8 }}>{importStatus}</div>}
-          <button onClick={() => { if (window.confirm('Delete ALL Samsara data? This cannot be undone.')) { clearAllData(); window.location.reload(); } }} style={{ ...S.newVialBtn, marginTop: 8, color: 'rgba(220,80,80,0.6)', borderColor: 'rgba(220,80,80,0.2)' }}>Clear All Data</button>
+          <button onClick={async () => { if (window.confirm('Delete ALL Samsara data? This cannot be undone.')) { await clearAllData(); window.location.reload(); } }} style={{ ...S.newVialBtn, marginTop: 8, color: 'rgba(220,80,80,0.6)', borderColor: 'rgba(220,80,80,0.2)' }}>Clear All Data</button>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <AboutDisclaimer />
         </div>
 
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v3.4</div>
+          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v3.7</div>
           <div style={{ fontSize: 9, color: T.t4, fontFamily: T.fm, marginTop: 4 }}>Eastern philosophy meets biohacking precision</div>
         </div>
       </div>}

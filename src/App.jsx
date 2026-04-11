@@ -1,5 +1,5 @@
-/* SAMSARA v3.4 - Root Application */
-import { useState, useEffect, useRef } from 'react';
+/* SAMSARA v3.7 - Root Application */
+import { useState, useEffect, useRef, useCallback } from 'react';
 import T from './utils/tokens';
 import S from './utils/styles';
 import { DEFAULT_STACK } from './data/library';
@@ -11,6 +11,8 @@ import TrackTab from './tabs/TrackTab';
 import BodyTab from './tabs/BodyTab';
 import MetricsTab from './tabs/MetricsTab';
 import ProfileTab from './tabs/ProfileTab';
+// Pro gating removed — all features unlocked
+import { DisclaimerGate } from './components/Disclaimers';
 import { detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, logSubjective, getSubjectiveChartData } from './data/analytics';
 import { initNotifications, isSupported } from './utils/notifications';
 
@@ -66,21 +68,51 @@ export default function App() {
     height: { feet: 5, inches: 10 },
     currentWeight: null,
     currentWaist: null,
-    targetWeight: 170,
-    targetWaist: 26,
-    targetBodyFat: 15,
+    targetWeight: null,
+    targetWaist: null,
+    targetBodyFat: null,
     goalDate: null,
     primaryGoal: 'recomp',
     biologicalSex: 'male',
     startDate: null,
     onboardingComplete: false,
     unitSystem: 'imperial',
+    tier: 'free',
   });
 
   const tab = settings.tab || 'CALC';
   const setTab = (t) => setSettings(p => ({ ...p, tab: t }));
+  // Pro upgrade UI kept in codebase but not active
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
-  const handleOnboardingComplete = () => {};
+  const handleOnboardingComplete = (quickStartCompound) => {
+    if (quickStartCompound) {
+      // Quick Start: add the single compound to the stack
+      const c = quickStartCompound;
+      const stackEntry = {
+        id: c.id,
+        name: c.name,
+        category: c.category,
+        vialMg: c.defaultVialMg,
+        dose: c.defaultDose,
+        unit: c.defaultUnit,
+        frequency: c.frequency,
+        timing: c.timing,
+        addedAt: new Date().toISOString(),
+      };
+      setStack([stackEntry]);
+      // Pre-load calculator with this compound
+      setCs({
+        vialMg: String(c.defaultVialMg),
+        waterMl: String(c.defaultWaterMl || 2),
+        doseMcg: String(c.defaultDose),
+        doseUnit: c.defaultUnit,
+        freq: c.frequency,
+        waterLocked: true,
+        activePreset: c.name,
+      });
+    }
+  };
 
   // Init notifications on load + when stack/vials/settings change
   useEffect(() => {
@@ -97,6 +129,8 @@ export default function App() {
       <style>{CSS}</style>
       {!profile || !profile.onboardingComplete ? (
         <OnboardingFlow profile={profile} setProfile={setProfile} onComplete={handleOnboardingComplete} settings={settings} setSettings={setSettings} />
+      ) : !settings.disclaimerAccepted ? (
+        <DisclaimerGate onAccept={() => setSettings(p => ({ ...p, disclaimerAccepted: true }))} />
       ) : (
         <div style={S.root}><div style={S.bgGlow} />
           <div ref={contentRef} style={S.content}>
@@ -106,6 +140,7 @@ export default function App() {
             {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} />}
             {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} />}
           </div>
+          {/* UpgradeScreen available in ProGate.jsx when ready for IAP */}
           <nav style={S.tabBar}>{TABS.map(t => { const active = tab === t, color = active ? T.amberFull : 'rgba(140,160,180,0.4)';
             return <button key={t} onClick={() => setTab(t)} style={S.tabBtn}>{TabIcons[t](color)}<span style={{ ...S.tabLabel, color, fontWeight: active ? 700 : 400 }}>{t}</span>{active && <div style={S.tabLine} />}</button>;
           })}</nav>

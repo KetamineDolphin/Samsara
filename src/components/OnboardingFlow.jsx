@@ -1,9 +1,10 @@
-/* SAMSARA v3.4 - OnboardingFlow (7 screens + notification prompt) */
-import { useState } from 'react';
+/* SAMSARA v3.7 - OnboardingFlow (5 screens + Quick Start + notification prompt) */
+import { useState, useMemo } from 'react';
 import T from '../utils/tokens';
 import S from '../utils/styles';
 import { SamsaraSymbol } from './Shared';
 import { isSupported, requestPermission } from '../utils/notifications';
+import LIB from '../data/library';
 
 const GOALS = [
   { value: 'fat_loss', title: 'Fat Loss', desc: 'Reduce body fat while preserving muscle' },
@@ -62,17 +63,38 @@ const skipBtn = {
   textAlign: 'center', background: 'none', border: 'none', width: '100%', padding: 8,
 };
 
+/* --- Quick Start: popular compounds for single-compound users --- */
+const QS_POPULAR_IDS = ['semaglutide', 'tirzepatide', 'retatrutide', 'ipamorelin', 'cjc_nodac', 'tesamorelin', 'bpc157', 'tb500'];
+const QS_POPULAR = QS_POPULAR_IDS.map(id => LIB.find(c => c.id === id)).filter(Boolean);
+
 export default function OnboardingFlow({ profile, setProfile, onComplete, settings, setSettings }) {
   const [screen, setScreen] = useState(1);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [quickStart, setQuickStart] = useState(false);
+  const [qsScreen, setQsScreen] = useState(1); // 1 = pick compound, 2 = basic info + confirm
+  const [qsSearch, setQsSearch] = useState('');
+  const [qsCompound, setQsCompound] = useState(null);
+  const [qsDraft, setQsDraft] = useState({ currentWeight: '', biologicalSex: 'male', unitSystem: 'imperial' });
+
+  /* --- Quick Start: filtered compounds list --- */
+  const qsFiltered = useMemo(() => {
+    if (!qsSearch.trim()) return QS_POPULAR;
+    const q = qsSearch.toLowerCase().trim();
+    return LIB.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.category.toLowerCase().includes(q) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    ).slice(0, 12);
+  }, [qsSearch]);
+
   /* local draft so we don't write to storage on every keystroke */
   const [draft, setDraft] = useState({
     name: profile.name || '',
     age: profile.age || '',
     biologicalSex: profile.biologicalSex || 'male',
     unitSystem: profile.unitSystem || 'imperial',
-    heightFeet: profile.height ? String(profile.height.feet || '') : '',
-    heightInches: profile.height ? String(profile.height.inches || '') : '',
+    heightFeet: profile.onboardingComplete && profile.height ? String(profile.height.feet || '') : '',
+    heightInches: profile.onboardingComplete && profile.height ? String(profile.height.inches || '') : '',
     heightCm: '',
     currentWeight: profile.currentWeight ? String(profile.currentWeight) : '',
     currentWaist: profile.currentWaist ? String(profile.currentWaist) : '',
@@ -84,7 +106,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
   });
 
   const set = (key, val) => setDraft(p => ({ ...p, [key]: val }));
-  const next = () => setScreen(s => Math.min(s + 1, 7));
+  const next = () => setScreen(s => Math.min(s + 1, 5));
   const back = () => setScreen(s => Math.max(s - 1, 1));
 
   const isImperial = draft.unitSystem === 'imperial';
@@ -141,24 +163,76 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
     }
   };
 
+  /* --- Quick Start completion --- */
+  const completeQuickStart = () => {
+    const c = qsCompound;
+    if (!c) return;
+    const isImp = qsDraft.unitSystem === 'imperial';
+    const finalProfile = {
+      ...profile,
+      name: '',
+      age: null,
+      biologicalSex: qsDraft.biologicalSex,
+      unitSystem: qsDraft.unitSystem,
+      height: isImp ? { feet: 5, inches: 10 } : { cm: 175 },
+      currentWeight: parseFloat(qsDraft.currentWeight) || null,
+      currentWaist: null,
+      targetWeight: null,
+      targetWaist: null,
+      targetBodyFat: null,
+      primaryGoal: 'recomp',
+      goalDate: null,
+      startDate: new Date().toISOString().slice(0, 10),
+      onboardingComplete: true,
+      quickStartCompound: c.id,
+    };
+    setProfile(finalProfile);
+    onComplete(c); // pass compound so App can add to stack
+  };
+
+  const finishCurrentFlow = () => {
+    if (quickStart) completeQuickStart();
+    else completeOnboarding();
+  };
+
   const handleNotifEnable = async () => {
     const result = await requestPermission();
     if (result === 'granted' && setSettings) {
       setSettings(p => ({ ...p, notificationsEnabled: true }));
     }
-    completeOnboarding();
+    finishCurrentFlow();
   };
 
   const handleNotifSkip = () => {
-    completeOnboarding();
+    finishCurrentFlow();
   };
 
-  /* --- progress dots (screens 2-7 only) --- */
+  const handleQsFinish = () => {
+    if (isSupported() && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      setShowNotifPrompt(true);
+    } else {
+      completeQuickStart();
+    }
+  };
+
+  /* --- progress dots --- */
   const renderDots = () => {
+    if (quickStart) {
+      return (
+        <div style={{ paddingTop: 20, paddingBottom: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {[1, 2].map(i => (
+            <div key={i} style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: i <= qsScreen ? T.gold : 'rgba(255,255,255,0.08)',
+            }} />
+          ))}
+        </div>
+      );
+    }
     if (screen === 1) return null;
     return (
       <div style={{ paddingTop: 20, paddingBottom: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
-        {[1, 2, 3, 4, 5, 6, 7].map(i => (
+        {[1, 2, 3, 4, 5].map(i => (
           <div key={i} style={{
             width: 8, height: 8, borderRadius: '50%',
             background: i <= screen ? T.gold : 'rgba(255,255,255,0.08)',
@@ -168,8 +242,9 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
     );
   };
 
-  /* --- back button (screens 2-7 only) --- */
+  /* --- back button --- */
   const renderBack = () => {
+    if (quickStart) return null; // QS has inline back buttons
     if (screen <= 1) return null;
     return (
       <div style={{ width: '100%', maxWidth: 480, padding: '0 20px' }}>
@@ -189,7 +264,163 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
   );
 
   /* ======================================================================
-     SCREENS
+     QUICK START SCREENS
+     ====================================================================== */
+  const renderQsScreen = () => {
+    const catColor = (cat) => {
+      const map = { 'GH Secretagogue': T.teal, 'Fat Loss': T.gold, 'Recovery': T.green, 'Cognitive': T.purple, 'Hormonal': T.amber };
+      return map[cat] || T.t2;
+    };
+
+    switch (qsScreen) {
+      /* ======================== QS1: PICK COMPOUND ======================== */
+      case 1:
+        return (
+          <div>
+            <h2 style={titleStyle}>What are you taking?</h2>
+            <p style={subtitleStyle}>Pick your compound and we{'\u2019'}ll set everything up.</p>
+
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="text"
+                value={qsSearch}
+                onChange={e => setQsSearch(e.target.value)}
+                placeholder="Search compounds..."
+                style={{ ...S.input, width: '100%', fontSize: 14, padding: '10px 14px' }}
+              />
+            </div>
+
+            {!qsSearch.trim() && (
+              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' }}>Popular</div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+              {qsFiltered.map(c => {
+                const selected = qsCompound && qsCompound.id === c.id;
+                return (
+                  <button key={c.id} onClick={() => setQsCompound(c)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 14px', borderRadius: 10,
+                    background: selected ? T.goldS : 'rgba(255,255,255,0.02)',
+                    border: '1px solid ' + (selected ? T.goldM : T.border),
+                    cursor: 'pointer', textAlign: 'left', width: '100%',
+                    transition: 'all .2s ease',
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: selected ? T.gold : T.t1, fontFamily: T.fb }}>{c.name}</div>
+                      <div style={{ fontSize: 10, color: catColor(c.category), fontFamily: T.fm, marginTop: 2 }}>{c.category}</div>
+                    </div>
+                    <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, textAlign: 'right' }}>
+                      {c.defaultDose}{c.defaultUnit} {c.frequency === 'weekly' ? '/wk' : '/day'}
+                    </div>
+                    {selected && <span style={{ color: T.gold, fontSize: 16 }}>{'\u2713'}</span>}
+                  </button>
+                );
+              })}
+              {qsFiltered.length === 0 && (
+                <p style={{ fontSize: 12, color: T.t3, fontFamily: T.fm, textAlign: 'center', padding: 20 }}>No compounds found. Try a different search.</p>
+              )}
+            </div>
+
+            <button onClick={() => setQsScreen(2)} disabled={!qsCompound} style={{
+              ...goldBtn, ...(qsCompound ? {} : { opacity: 0.4, cursor: 'default' }),
+            }}>Continue {'\u2192'}</button>
+            <div style={{ height: 8 }} />
+            <button onClick={() => { setQuickStart(false); setQsScreen(1); setQsCompound(null); setQsSearch(''); }} style={skipBtn}>{'\u2190'} Full Setup Instead</button>
+          </div>
+        );
+
+      /* ======================== QS2: BASIC INFO + CONFIRM ======================== */
+      case 2: {
+        const c = qsCompound;
+        const qsWUnit = qsDraft.unitSystem === 'imperial' ? 'lbs' : 'kg';
+        const qsValid = true; // weight optional in quick start
+        return (
+          <div>
+            <h2 style={titleStyle}>Almost There</h2>
+            <p style={subtitleStyle}>Just the basics — you can fill in the rest later in Profile.</p>
+
+            {/* Compound summary card */}
+            <div style={{ ...S.card, padding: '14px 16px', marginBottom: 20, borderColor: T.goldM, background: T.goldS }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: T.gold, fontFamily: T.fb }}>{c.name}</div>
+              <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginTop: 4 }}>
+                {c.defaultDose}{c.defaultUnit} · {c.frequency} · Vial: {c.defaultVialMg}mg
+              </div>
+              <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 6, lineHeight: 1.5 }}>{c.description}</div>
+            </div>
+
+            {/* Unit system toggle */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={S.label}>Units</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[{ v: 'imperial', l: 'Imperial' }, { v: 'metric', l: 'Metric' }].map(o => (
+                  <button key={o.v} onClick={() => setQsDraft(p => ({ ...p, unitSystem: o.v }))} style={{
+                    ...S.freqBtn, flex: 1, padding: '10px 4px', fontSize: 11, fontFamily: T.fm,
+                    ...(qsDraft.unitSystem === o.v ? S.freqOn : {}),
+                  }}>{o.l}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Biological sex */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={S.label}>Biological Sex</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }].map(o => (
+                  <button key={o.v} onClick={() => setQsDraft(p => ({ ...p, biologicalSex: o.v }))} style={{
+                    ...S.freqBtn, flex: 1, padding: '10px 4px', fontSize: 11, fontFamily: T.fm,
+                    ...(qsDraft.biologicalSex === o.v ? S.freqOn : {}),
+                  }}>{o.l}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Weight (optional) */}
+            <InputWithTag
+              label={<>Current Weight <span style={{ color: T.t3 }}>(optional)</span></>}
+              value={qsDraft.currentWeight}
+              onChange={e => setQsDraft(p => ({ ...p, currentWeight: e.target.value }))}
+              placeholder={qsDraft.unitSystem === 'imperial' ? 'lbs' : 'kg'}
+              tag={qsWUnit}
+              style={{ marginBottom: 16 }}
+            />
+
+            <div style={{ height: 8 }} />
+
+            {/* What you'll get */}
+            <div style={{
+              padding: '12px 14px', borderRadius: 8,
+              background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border,
+              marginBottom: 20,
+            }}>
+              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>You{'\u2019'}ll get</div>
+              {[
+                'Calculator pre-loaded with ' + c.name,
+                'Dose tracking & vial management',
+                'Body composition tracking',
+                'AI progress analysis',
+              ].map((item, i) => (
+                <div key={i} style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.8 }}>
+                  <span style={{ color: T.gold, marginRight: 6 }}>{'\u2713'}</span>{item}
+                </div>
+              ))}
+            </div>
+
+            <button onClick={handleQsFinish} style={{ ...goldBtn, background: T.gold, color: T.bg, fontWeight: 700 }}>
+              Start with {c.name} {'\u2192'}
+            </button>
+            <div style={{ height: 8 }} />
+            <button onClick={() => setQsScreen(1)} style={skipBtn}>{'\u2190'} Change Compound</button>
+          </div>
+        );
+      }
+
+      default: return null;
+    }
+  };
+
+  /* ======================================================================
+     FULL ONBOARDING SCREENS
      ====================================================================== */
   const renderScreen = () => {
     switch (screen) {
@@ -207,8 +438,21 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
               fontFamily: T.fm, fontSize: 12, letterSpacing: 4, color: T.t3,
               textAlign: 'center', marginTop: 8, textTransform: 'uppercase',
             }}>Become.</p>
-            <div style={{ height: 60 }} />
+            <div style={{ height: 48 }} />
             <button onClick={next} style={goldBtn}>Begin Your Protocol</button>
+            <div style={{ height: 12 }} />
+            <button onClick={() => { setQuickStart(true); setQsScreen(1); }} style={{
+              ...goldBtn,
+              background: 'none',
+              border: '1px solid ' + T.goldM,
+              color: T.gold,
+              fontWeight: 500,
+              fontSize: 13,
+            }}>Quick Start — One Compound</button>
+            <p style={{
+              fontFamily: T.fm, fontSize: 10, color: T.t3,
+              textAlign: 'center', marginTop: 12, lineHeight: 1.5,
+            }}>For GLP-1, TRT, or single peptide users</p>
           </div>
         );
 
@@ -271,24 +515,24 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={S.frow}>
-                      <input type='number' inputMode='numeric' value={draft.heightFeet} onChange={e => set('heightFeet', e.target.value)} placeholder='5' style={{ ...S.input, flex: 1, fontSize: 15 }} />
+                      <input type='number' inputMode='numeric' value={draft.heightFeet} onChange={e => set('heightFeet', e.target.value)} placeholder='ft' style={{ ...S.input, flex: 1, fontSize: 15 }} />
                       <span style={S.tag}>ft</span>
                     </div>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={S.frow}>
-                      <input type='number' inputMode='numeric' value={draft.heightInches} onChange={e => set('heightInches', e.target.value)} placeholder='10' style={{ ...S.input, flex: 1, fontSize: 15 }} />
+                      <input type='number' inputMode='numeric' value={draft.heightInches} onChange={e => set('heightInches', e.target.value)} placeholder='in' style={{ ...S.input, flex: 1, fontSize: 15 }} />
                       <span style={S.tag}>in</span>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <InputWithTag label='Height' value={draft.heightCm} onChange={e => set('heightCm', e.target.value)} placeholder='178' tag='cm' style={{ marginBottom: 16 }} />
+              <InputWithTag label='Height' value={draft.heightCm} onChange={e => set('heightCm', e.target.value)} placeholder='cm' tag='cm' style={{ marginBottom: 16 }} />
             )}
 
-            <InputWithTag label='Current Weight' value={draft.currentWeight} onChange={e => set('currentWeight', e.target.value)} placeholder={isImperial ? '194' : '88'} tag={wUnit} style={{ marginBottom: 16 }} />
-            <InputWithTag label='Current Waist' value={draft.currentWaist} onChange={e => set('currentWaist', e.target.value)} placeholder={isImperial ? '29' : '74'} tag={waUnit} style={{ marginBottom: 16 }} />
+            <InputWithTag label='Current Weight' value={draft.currentWeight} onChange={e => set('currentWeight', e.target.value)} placeholder={wUnit} tag={wUnit} style={{ marginBottom: 16 }} />
+            <InputWithTag label='Current Waist' value={draft.currentWaist} onChange={e => set('currentWaist', e.target.value)} placeholder={waUnit} tag={waUnit} style={{ marginBottom: 16 }} />
 
             <div style={{ height: 24 }} />
             {continueBtn(s3Valid)}
@@ -314,9 +558,9 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
               </div>
             </div>
 
-            <InputWithTag label='Target Weight' value={draft.targetWeight} onChange={e => set('targetWeight', e.target.value)} placeholder={isImperial ? '170' : '77'} tag={wUnit} style={{ marginBottom: 16 }} />
-            <InputWithTag label='Target Waist' value={draft.targetWaist} onChange={e => set('targetWaist', e.target.value)} placeholder={isImperial ? '26' : '66'} tag={waUnit} style={{ marginBottom: 16 }} />
-            <InputWithTag label='Target Body Fat %' value={draft.targetBodyFat} onChange={e => set('targetBodyFat', e.target.value)} placeholder='15' tag='%' style={{ marginBottom: 16 }} />
+            <InputWithTag label='Target Weight' value={draft.targetWeight} onChange={e => set('targetWeight', e.target.value)} placeholder={wUnit} tag={wUnit} style={{ marginBottom: 16 }} />
+            <InputWithTag label='Target Waist' value={draft.targetWaist} onChange={e => set('targetWaist', e.target.value)} placeholder={waUnit} tag={waUnit} style={{ marginBottom: 16 }} />
+            <InputWithTag label='Target Body Fat %' value={draft.targetBodyFat} onChange={e => set('targetBodyFat', e.target.value)} placeholder='%' tag='%' style={{ marginBottom: 16 }} />
 
             <div style={{ marginBottom: 16 }}>
               <label style={S.label}>Target date <span style={{ color: T.t3 }}>(optional)</span></label>
@@ -327,60 +571,15 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
           </div>
         );
 
-      /* ======================== SCREEN 5: YOUR STACK ======================== */
-      case 5:
-        return (
-          <div>
-            <h2 style={titleStyle}>Your Protocol</h2>
-            <p style={subtitleStyle}>Add the compounds you{'\''}re currently using. You can always add more later.</p>
-
-            <div style={{
-              ...S.card, padding: '14px 16px', marginBottom: 20,
-              borderColor: T.goldM, background: T.goldS,
-            }}>
-              <p style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>
-                Your stack is the list of peptides or compounds you inject or take. Samsara tracks your doses, calculates your draws, and monitors your vials.
-              </p>
-            </div>
-
-            <p style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6, marginBottom: 16, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border, borderRadius: 8 }}>
-              Go to Profile {'\u2192'} Library after setup to add your compounds.
-            </p>
-
-            <button onClick={next} style={goldBtn}>Continue {'\u2192'}</button>
-            <div style={{ height: 8 }} />
-            <button onClick={next} style={skipBtn}>Skip for Now {'\u2192'}</button>
-          </div>
-        );
-
-      /* ======================== SCREEN 6: AI ANALYSIS ======================== */
-      case 6:
-        return (
-          <div>
-            <h2 style={titleStyle}>AI Body Analysis</h2>
-            <p style={subtitleStyle}>The most powerful feature in Samsara.</p>
-
-            <div style={{
-              ...S.card, padding: '14px 16px', marginBottom: 20,
-              borderColor: T.goldM, background: T.goldS,
-            }}>
-              <p style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>
-                Upload progress photos and Claude AI analyzes your body composition — body fat estimate, regional assessment, rate score, and comparison to your last check-in.
-              </p>
-            </div>
-
-            <button onClick={next} style={goldBtn}>Continue {'\u2192'}</button>
-          </div>
-        );
-
-      /* ======================== SCREEN 7: READY ======================== */
-      case 7: {
+      /* ======================== SCREEN 5: READY (merged summary + features) ======================== */
+      case 5: {
         const summaryName = draft.name || 'Your Protocol';
         return (
           <div>
             <h2 style={titleStyle}>You{'\''}re Ready.</h2>
             <div style={{ height: 8 }} />
 
+            {/* Summary card */}
             <div style={{ ...S.card, padding: 16, borderColor: T.goldM }}>
               <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, fontFamily: T.fb, marginBottom: 12 }}>{summaryName}</div>
 
@@ -428,6 +627,20 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
             </div>
 
             <div style={{ height: 16 }} />
+
+            {/* Next steps callouts */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border }}>
+                <div style={{ fontSize: 12, color: T.t1, fontFamily: T.fb, fontWeight: 600, marginBottom: 2 }}>{'\u2731'} Add Your Compounds</div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.5 }}>Go to Profile {'\u2192'} Library to build your stack.</div>
+              </div>
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border }}>
+                <div style={{ fontSize: 12, color: T.t1, fontFamily: T.fb, fontWeight: 600, marginBottom: 2 }}>{'\u2728'} AI Body Analysis</div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.5 }}>Upload progress photos in the Body tab for AI-powered composition tracking.</div>
+              </div>
+            </div>
+
+            <div style={{ height: 16 }} />
             <p style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, textAlign: 'center', lineHeight: 1.6 }}>
               Your data stays on your device. Export a backup anytime in Settings.
             </p>
@@ -457,11 +670,11 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
       {renderBack()}
 
       {/* Screen content - key forces re-mount for fadeUp */}
-      <div key={screen} style={{
+      <div key={quickStart ? 'qs' + qsScreen : screen} style={{
         maxWidth: 480, width: '100%', padding: '0 20px 40px',
         animation: 'fadeUp .4s ease both',
       }}>
-        {renderScreen()}
+        {quickStart ? renderQsScreen() : renderScreen()}
       </div>
 
       {/* Notification permission prompt overlay */}

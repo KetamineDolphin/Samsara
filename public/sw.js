@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samsara-v4';
+const CACHE_NAME = 'samsara-v5';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -28,44 +28,45 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
-    clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
-    }).then((clientList) => {
-      if (clientList.length > 0) {
-        return clientList[0].focus();
-      }
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      if (clientList.length > 0) return clientList[0].focus();
       return clients.openWindow('/');
     })
   );
 });
 
-// Push - show notification from push event
+// Push - show notification
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
   event.waitUntil(
-    self.registration.showNotification(
-      data.title,
-      {
-        body: data.body,
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        tag: data.tag || 'samsara',
-        data: data.url || '/',
-        vibrate: [100, 50, 100],
-      }
-    )
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag || 'samsara',
+      data: data.url || '/',
+      vibrate: [100, 50, 100],
+    })
   );
 });
 
-// Fetch - network first, cache fallback
+// Fetch strategy:
+// - Static assets (JS/CSS/images): cache-first (they have hashed filenames)
+// - HTML/navigation: network-first with cache fallback
+// - API calls: network-only (never cache)
+// - Fonts: cache-first (permanent)
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET and API calls
+  const url = new URL(event.request.url);
+
+  // Skip non-GET requests entirely
   if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('api.anthropic.com')) return;
-  if (event.request.url.includes('fonts.googleapis.com')) {
-    // Cache fonts permanently
+
+  // Skip API calls
+  if (url.pathname.startsWith('/api/') || url.hostname === 'api.anthropic.com') return;
+
+  // Fonts - cache-first (permanent)
+  if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
@@ -79,10 +80,44 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Static assets with hash (JS/CSS bundles) - cache-first
+  if (url.pathname.match(/\/assets\/.*\.[a-f0-9]{8}\./)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        }).catch(() => caches.match(event.request));
+      })
+    );
+    return;
+  }
+
+  // CDN resources (three.js, chart.js, etc) - cache-first
+  if (url.hostname.includes('cdn') || url.hostname.includes('unpkg') || url.hostname.includes('jsdelivr')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        }).catch(() => caches.match(event.request));
+      })
+    );
+    return;
+  }
+
+  // Everything else (navigation, HTML) - network-first with cache fallback
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful responses
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
@@ -90,13 +125,9 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Offline fallback
         return caches.match(event.request).then((cached) => {
           if (cached) return cached;
-          // Return cached index.html for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
+          if (event.request.mode === 'navigate') return caches.match('/index.html');
           return new Response('Offline', { status: 503 });
         });
       })

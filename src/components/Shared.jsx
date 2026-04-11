@@ -1,9 +1,9 @@
-/* SAMSARA v3.0 - Shared Components */
+/* SAMSARA v3.6 - Shared Components */
 import T from '../utils/tokens';
 import { SITE_COLORS } from '../utils/tokens';
 
-// Unified Samsara symbol — Living Enso + Eternal Wheel + Lotus Mandala
-// detail: "full" = all layers, "medium" = enso + petals + center, "minimal" = enso + center
+// Samsara symbol — Ouroboros (serpent cycle) + DNA Double Helix
+// detail: "full" = all layers, "medium" = serpent + helix, "minimal" = serpent only
 export function SamsaraSymbol({ size = 44, detail = "auto", animate = true }) {
   const d = detail === "auto" ? (size >= 64 ? "full" : size >= 40 ? "medium" : "minimal") : detail;
   const anim = (name, dur, delay = 0, extra = "") =>
@@ -12,120 +12,120 @@ export function SamsaraSymbol({ size = 44, detail = "auto", animate = true }) {
   return (
     <div style={{ position: "relative", width: size, height: size, display: "inline-block" }}>
       {/* Ambient glow */}
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: size * 1.5, height: size * 1.5, borderRadius: "50%", background: "radial-gradient(circle,rgba(201,168,76,0.07) 0%,transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: size * 1.4, height: size * 1.4, borderRadius: "50%", background: "radial-gradient(circle,rgba(201,168,76,0.06) 0%,transparent 70%)", pointerEvents: "none" }} />
       <svg width={size} height={size} viewBox="0 0 400 400" fill="none" style={{ position: "relative", display: "block" }}>
         <defs>
-          <linearGradient id="sEnsoG" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id="soBodyG" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#c9a84c" stopOpacity="0.85"/>
-            <stop offset="45%" stopColor="#e8d48a" stopOpacity="1"/>
-            <stop offset="100%" stopColor="#c9a84c" stopOpacity="0.3"/>
+            <stop offset="40%" stopColor="#e8d48a" stopOpacity="1"/>
+            <stop offset="100%" stopColor="#c9a84c" stopOpacity="0.25"/>
           </linearGradient>
-          <linearGradient id="sSpokeG" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id="soHeadG" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#e8d48a" stopOpacity="0.95"/>
+            <stop offset="100%" stopColor="#c9a84c" stopOpacity="0.75"/>
+          </linearGradient>
+          <linearGradient id="soHelixG" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#c9a84c" stopOpacity="0.25"/>
+            <stop offset="50%" stopColor="#e8d48a" stopOpacity="0.7"/>
+            <stop offset="100%" stopColor="#c9a84c" stopOpacity="0.25"/>
+          </linearGradient>
+          <radialGradient id="soInnerG" cx="50%" cy="50%">
             <stop offset="0%" stopColor="#c9a84c" stopOpacity="0.05"/>
-            <stop offset="50%" stopColor="#c9a84c" stopOpacity="0.35"/>
-            <stop offset="100%" stopColor="#c9a84c" stopOpacity="0.05"/>
-          </linearGradient>
-          <radialGradient id="sCenterG" cx="50%" cy="50%">
-            <stop offset="0%" stopColor="#c9a84c" stopOpacity="0.18"/>
-            <stop offset="60%" stopColor="#c9a84c" stopOpacity="0.04"/>
             <stop offset="100%" stopColor="#c9a84c" stopOpacity="0"/>
           </radialGradient>
-          <filter id="sGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-          <filter id="sSoftGlow"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="soGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="soSoft"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
 
-        {/* === LAYER 0: Outer data-point ring (full only) === */}
+        {/* === LAYER 0: Outer measurement ring + data dots (full only) === */}
         {d === "full" && (
-          <g style={{ animation: anim("samsaraOuterPulse", 10) }}>
-            {[[200,38],[234,42],[266,52],[294,70],[316,94],[330,122],[338,152],[338,184],[332,216],[318,244],[298,268],[272,288],[244,300],[214,306],[184,306],[156,300],[130,286],[108,266],[90,242],[78,214],[72,184],[72,152],[80,122],[92,96],[110,72],[134,54],[162,42]].map(([cx,cy],i) =>
-              <circle key={i} cx={cx} cy={cy} r="1.2" fill="#c9a84c"/>
+          <g style={{ animation: anim("samsaraOuterPulse", 12) }}>
+            <circle cx="200" cy="200" r="172" fill="none" stroke="rgba(201,168,76,0.05)" strokeWidth="0.6" strokeDasharray="2 6">
+              {animate && <animate attributeName="stroke-dashoffset" from="0" to="-32" dur="18s" repeatCount="indefinite"/>}
+            </circle>
+            {[[200,28],[256,42],[302,74],[332,120],[344,174],[338,230],[316,280],[280,320],[236,346],[188,352],[140,336],[100,304],[72,260],[60,208],[66,154],[88,106],[124,68],[166,44]].map(([cx,cy],i) =>
+              <circle key={i} cx={cx} cy={cy} r="1.3" fill="#c9a84c" opacity="0.3"/>
             )}
           </g>
         )}
 
-        {/* === LAYER 1: Sacred geometry (full only) === */}
-        {d === "full" && (
-          <g>
-            <polygon points="200,110 278,155 278,245 200,290 122,245 122,155" fill="none" stroke="rgba(201,168,76,0.04)" strokeWidth="0.6"/>
-            <polygon points="200,130 258,165 258,235 200,270 142,235 142,165" fill="none" stroke="rgba(201,168,76,0.03)" strokeWidth="0.5"/>
-          </g>
-        )}
+        {/* === LAYER 1: Inner space glow === */}
+        <circle cx="200" cy="200" r="105" fill="url(#soInnerG)" />
 
-        {/* === LAYER 2: Eternal Wheel spokes (full + medium) === */}
-        {d !== "minimal" && (
-          <g style={{ animation: anim("samsaraSpin", 90, 0, "linear"), transformOrigin: "200px 200px" }}>
-            {/* 8 spokes */}
-            <line x1="200" y1="80"  x2="200" y2="148" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="200" y1="252" x2="200" y2="320" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="80"  y1="200" x2="148" y2="200" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="252" y1="200" x2="320" y2="200" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="115" y1="115" x2="158" y2="158" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="242" y1="242" x2="285" y2="285" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="285" y1="115" x2="242" y2="158" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            <line x1="158" y1="242" x2="115" y2="285" stroke="url(#sSpokeG)" strokeWidth="1"/>
-            {/* 8 nodes */}
-            <circle cx="200" cy="76"  r="2.5" fill="#c9a84c" opacity="0.45"/>
-            <circle cx="200" cy="324" r="2.5" fill="#c9a84c" opacity="0.45"/>
-            <circle cx="76"  cy="200" r="2.5" fill="#c9a84c" opacity="0.45"/>
-            <circle cx="324" cy="200" r="2.5" fill="#c9a84c" opacity="0.45"/>
-            <circle cx="112" cy="112" r="2" fill="#c9a84c" opacity="0.3"/>
-            <circle cx="288" cy="112" r="2" fill="#c9a84c" opacity="0.3"/>
-            <circle cx="112" cy="288" r="2" fill="#c9a84c" opacity="0.3"/>
-            <circle cx="288" cy="288" r="2" fill="#c9a84c" opacity="0.3"/>
-          </g>
-        )}
-
-        {/* === LAYER 3: The Living Enso === */}
-        <g style={{ animation: anim("samsaraBreathe", 7), transformOrigin: "200px 200px" }} filter="url(#sGlow)">
-          <path d="M 185 72 C 240 65, 310 100, 318 165 C 326 230, 290 310, 220 325 C 150 340, 72 305, 68 235 C 64 165, 100 100, 148 80"
-            fill="none" stroke="url(#sEnsoG)" strokeWidth="5.5" strokeLinecap="round"
-            strokeDasharray="3 0 12 0 25 0 12 0 3"/>
-          {/* Brush tail */}
-          <line x1="150" y1="79" x2="156" y2="74" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" opacity="0.35"/>
-          {/* Brush head */}
-          <line x1="183" y1="73" x2="178" y2="69" stroke="#e8d48a" strokeWidth="1.5" strokeLinecap="round" opacity="0.3"/>
+        {/* === LAYER 2: The Ouroboros (serpent body + head + eye) === */}
+        <g style={{ animation: anim("samsaraBreathe", 8), transformOrigin: "200px 200px" }}>
+          {/* Serpent body — organic ensō-style path */}
+          <path
+            d="M 185 72 C 240 65, 310 100, 318 165 C 326 230, 290 310, 220 325 C 150 340, 72 305, 68 235 C 64 165, 100 100, 148 80"
+            fill="none" stroke="url(#soBodyG)" strokeWidth="7" strokeLinecap="round"
+            strokeDasharray="4 0 16 0 32 0 16 0 4"
+            filter="url(#soGlow)"
+          />
+          {/* Subtle scale marks along body */}
+          {d !== "minimal" && (
+            <path
+              d="M 185 72 C 240 65, 310 100, 318 165 C 326 230, 290 310, 220 325 C 150 340, 72 305, 68 235 C 64 165, 100 100, 148 80"
+              fill="none" stroke="rgba(201,168,76,0.07)" strokeWidth="11"
+              strokeLinecap="butt" strokeDasharray="1 14"
+            />
+          )}
+          {/* Serpent head — flared shape at path start, pointing toward tail */}
+          <path
+            d="M 174 73 C 177 64, 184 58, 192 61 L 190 67 L 190 77 L 192 83 C 184 86, 177 82, 174 73 Z"
+            fill="url(#soHeadG)" filter="url(#soGlow)"
+          />
+          {/* Eye */}
+          <circle cx="184" cy="69" r="2.5" fill="#e8d48a" opacity="0.9" filter="url(#soSoft)">
+            {animate && <animate attributeName="opacity" values="0.5;1;0.5" dur="4s" repeatCount="indefinite"/>}
+          </circle>
+          <circle cx="183.5" cy="69" r="1" fill="rgba(15,17,20,0.6)"/>
+          {/* Tail tip accent */}
+          <circle cx="148" cy="80" r="1.5" fill="#c9a84c" opacity="0.3"/>
         </g>
 
-        {/* Whisper echo ring */}
+        {/* === LAYER 3: DNA Double Helix (medium + full) === */}
         {d !== "minimal" && (
-          <circle cx="200" cy="200" r="136" fill="none" stroke="rgba(201,168,76,0.04)" strokeWidth="0.6" strokeDasharray="4 8">
-            {animate && <animate attributeName="stroke-dashoffset" from="0" to="-48" dur="20s" repeatCount="indefinite"/>}
-          </circle>
-        )}
-
-        {/* === LAYER 4: Orbiting particle === */}
-        {d !== "minimal" && (
-          <g style={{ animation: anim("samsaraSpin", 15, 0, "linear"), transformOrigin: "200px 200px" }}>
-            <circle cx="200" cy="64" r="2.2" fill="#e8d48a" opacity="0.9" filter="url(#sSoftGlow)"/>
-            <circle cx="212" cy="65" r="1" fill="#e8d48a" opacity="0.4"/>
-            <circle cx="188" cy="66" r="0.7" fill="#e8d48a" opacity="0.25"/>
+          <g style={{ animation: anim("breathe", 7) }} filter="url(#soSoft)">
+            {/* Strand A */}
+            <path
+              d="M 222 118 C 222 146, 178 146, 178 174 S 222 202, 222 230 S 178 258, 178 286"
+              stroke="url(#soHelixG)" strokeWidth="2" strokeLinecap="round" fill="none"
+            />
+            {/* Strand B */}
+            <path
+              d="M 178 118 C 178 146, 222 146, 222 174 S 178 202, 178 230 S 222 258, 222 286"
+              stroke="url(#soHelixG)" strokeWidth="2" strokeLinecap="round" fill="none"
+            />
+            {/* Base pair rungs */}
+            <line x1="192" y1="132" x2="208" y2="132" stroke="#c9a84c" strokeWidth="1" opacity="0.2"/>
+            <line x1="180" y1="160" x2="220" y2="160" stroke="#c9a84c" strokeWidth="1" opacity="0.3"/>
+            <line x1="180" y1="244" x2="220" y2="244" stroke="#c9a84c" strokeWidth="1" opacity="0.3"/>
+            <line x1="192" y1="272" x2="208" y2="272" stroke="#c9a84c" strokeWidth="1" opacity="0.2"/>
+            {/* Base pair dots (full only) */}
+            {d === "full" && <>
+              <circle cx="192" cy="132" r="1.5" fill="#c9a84c" opacity="0.25"/>
+              <circle cx="208" cy="132" r="1.5" fill="#c9a84c" opacity="0.25"/>
+              <circle cx="180" cy="160" r="1.8" fill="#c9a84c" opacity="0.35"/>
+              <circle cx="220" cy="160" r="1.8" fill="#c9a84c" opacity="0.35"/>
+              <circle cx="220" cy="244" r="1.8" fill="#c9a84c" opacity="0.35"/>
+              <circle cx="180" cy="244" r="1.8" fill="#c9a84c" opacity="0.35"/>
+              <circle cx="208" cy="272" r="1.5" fill="#c9a84c" opacity="0.25"/>
+              <circle cx="192" cy="272" r="1.5" fill="#c9a84c" opacity="0.25"/>
+            </>}
+            {/* Crossing point accents */}
+            <circle cx="200" cy="146" r="1.5" fill="#e8d48a" opacity="0.4"/>
+            <circle cx="200" cy="202" r="1.5" fill="#e8d48a" opacity="0.4"/>
+            <circle cx="200" cy="258" r="1.5" fill="#e8d48a" opacity="0.4"/>
           </g>
         )}
 
-        {/* === LAYER 5: Lotus petals === */}
+        {/* === LAYER 4: Orbiting particle (medium + full) === */}
         {d !== "minimal" && (
-          <g filter="url(#sSoftGlow)">
-            <path d="M 200 186 Q 196 155 200 128 Q 204 155 200 186" fill="none" stroke="#c9a84c" strokeWidth="1.3" opacity="0.6" style={{ animation: anim("samsaraPetal", 9), transformOrigin: "200px 200px" }}/>
-            <path d="M 212 192 Q 236 168 260 148 Q 240 172 212 192" fill="none" stroke="#c9a84c" strokeWidth="1.3" opacity="0.5" style={{ animation: anim("samsaraPetal", 9, 1.5), transformOrigin: "200px 200px" }}/>
-            <path d="M 212 208 Q 238 228 258 252 Q 236 232 212 208" fill="none" stroke="#c9a84c" strokeWidth="1.3" opacity="0.45" style={{ animation: anim("samsaraPetal", 9, 3), transformOrigin: "200px 200px" }}/>
-            <path d="M 200 214 Q 204 245 200 272 Q 196 245 200 214" fill="none" stroke="#c9a84c" strokeWidth="1.3" opacity="0.45" style={{ animation: anim("samsaraPetal", 9, 4.5), transformOrigin: "200px 200px" }}/>
-            <path d="M 188 208 Q 164 228 142 252 Q 162 232 188 208" fill="none" stroke="#c9a84c" strokeWidth="1.3" opacity="0.5" style={{ animation: anim("samsaraPetal", 9, 6), transformOrigin: "200px 200px" }}/>
-            <path d="M 188 192 Q 164 168 140 148 Q 160 172 188 192" fill="none" stroke="#c9a84c" strokeWidth="1.3" opacity="0.6" style={{ animation: anim("samsaraPetal", 9, 7.5), transformOrigin: "200px 200px" }}/>
+          <g style={{ animation: anim("samsaraSpin", 20, 0, "linear"), transformOrigin: "200px 200px" }}>
+            <circle cx="200" cy="56" r="2.5" fill="#e8d48a" opacity="0.8" filter="url(#soSoft)"/>
+            <circle cx="207" cy="57" r="1" fill="#e8d48a" opacity="0.3"/>
           </g>
         )}
-
-        {/* === LAYER 6: The Bindu (center seed) === */}
-        <circle cx="200" cy="200" r="44" fill="url(#sCenterG)"/>
-        {d !== "minimal" && <circle cx="200" cy="200" r="10" fill="none" stroke="rgba(201,168,76,0.2)" strokeWidth="0.8"/>}
-        {/* Breathing halo */}
-        <circle cx="200" cy="200" r="8" fill="none" stroke="rgba(201,168,76,0.12)" strokeWidth="0.5">
-          {animate && <><animate attributeName="r" values="8;14;8" dur="6s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0;1" dur="6s" repeatCount="indefinite"/></>}
-        </circle>
-        {/* Seed pulse */}
-        <circle cx="200" cy="200" r="3" fill="#c9a84c" opacity="0.7">
-          {animate && <><animate attributeName="r" values="2.5;4;2.5" dur="5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.9;0.5" dur="5s" repeatCount="indefinite"/></>}
-        </circle>
-        <circle cx="200" cy="200" r="1.2" fill="#e8d48a" opacity="0.95"/>
       </svg>
     </div>
   );

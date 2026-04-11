@@ -7,6 +7,7 @@ import { TIMING_GROUPS, FREQ_META } from '../data/library';
 import { getToday, getNow, fmtDose, daysNextWeekly, getWeekStart, concOf, unitsOf, usableDoses, vialAge, vialFreshness, suggestNextSite, getEscalationStatus, makeId, SITE_LIST } from '../utils/helpers';
 import { BodyMap } from '../components/Shared';
 import BodyModel3D from '../components/BodyModel3D';
+// Pro gating removed — all features unlocked
 
 /* ── Tissue quality analysis ─────────────────────────── */
 function analyzeSites(siteHistory) {
@@ -326,7 +327,7 @@ function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, s
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type='text'
-                  placeholder='Any observations...'
+                  placeholder=''
                   value={siteLogData.notes || ''}
                   onChange={e => onSiteLogStepAction('updateNotes', e.target.value)}
                   style={{
@@ -1091,7 +1092,7 @@ function LogView({ logs: rawLogs }) {
 }
 
 /* ── TrackTab root with multi-step site log flow ─────────────────────────── */
-export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile }) {
+export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile, onUpgrade }) {
   const [sv, setSv] = useState('today');
   const [siteLogStep, setSiteLogStep] = useState(null);
   const [siteLogData, setSiteLogData] = useState({ siteId: null, compound: '', tissueQuality: 3, notes: '' });

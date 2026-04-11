@@ -6,6 +6,7 @@ import S from '../utils/styles';
 import { getToday, parseBF, makeId } from '../utils/helpers';
 import { SamsaraSymbol, Enso } from '../components/Shared';
 import { parseLabText, extractLabDate, countParsedMarkers } from '../utils/labParser';
+// Pro gating removed — all features unlocked
 
 Chart.register(...registerables);
 
@@ -447,7 +448,7 @@ function SubjectiveLineChart({ data, color, label, height = 160 }) {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults }) {
+export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, onUpgrade }) {
   const checkins = rawCheckins || [];
   const results = labResults || [];
   const sex = profile?.biologicalSex || 'male';
@@ -875,7 +876,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
               step="0.01"
               value={v ?? ''}
               onChange={e => setMarker(key, e.target.value)}
-              placeholder="--"
+              placeholder=""
               style={{ width: 80, padding: '6px 8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, color: T.t1, fontFamily: T.fm, fontSize: 12 }}
             />
             <div style={{ width: 50, fontSize: 9, color: T.t3, fontFamily: T.fm }}>{unit}</div>
@@ -912,7 +913,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
               <textarea
                 value={rawLabText}
                 onChange={e => setRawLabText(e.target.value)}
-                placeholder={'Paste lab report text here...\n\nExample:\nTotal Testosterone  850  ng/dL\nEstradiol  28  pg/mL\nHematocrit  48.2  %'}
+                placeholder=""
                 style={{ width: '100%', height: 160, padding: 10, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, color: T.t1, fontFamily: T.fm, fontSize: 11, resize: 'vertical', boxSizing: 'border-box' }}
               />
               <button onClick={handleParseText} style={{ ...S.newVialBtn, width: '100%', marginTop: 8 }}>Extract Values</button>
@@ -935,7 +936,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 4, letterSpacing: 1 }}>REPORT NAME</div>
-                  <input type="text" value={labLabel} onChange={e => setLabLabel(e.target.value)} placeholder="Quest March 2026" style={{ width: '100%', padding: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, color: T.t1, fontFamily: T.fm, fontSize: 12, boxSizing: 'border-box' }} />
+                  <input type="text" value={labLabel} onChange={e => setLabLabel(e.target.value)} placeholder="" style={{ width: '100%', padding: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, color: T.t1, fontFamily: T.fm, fontSize: 12, boxSizing: 'border-box' }} />
                 </div>
               </div>
 

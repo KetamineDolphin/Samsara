@@ -390,6 +390,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   const [importResults, setImportResults] = useState(null);
   const [manualPrices, setManualPrices] = useState({});
   const [expandedLibId, setExpandedLibId] = useState(null);
+  const [libZoom, setLibZoom] = useState(0); // -2 to +4, each step = 1px
   const [notifPerm, setNotifPerm] = useState(() => isSupported() ? Notification.permission : 'unsupported');
   const fileInputRef = useRef(null);
 
@@ -1282,9 +1283,15 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
       </div>}
 
       {sv === 'library' && <div>
-        <div style={{ marginBottom: 12 }}><input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="" style={{ ...S.input, width: '100%', fontSize: 14, padding: '11px 14px', background: 'rgba(0,0,0,0.3)', color: T.t1 }} /></div>
-        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
-        {filtered.map(p => { const cc = CAT_C[p.category] || T.gold; const added = inStack.has(p.id);
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+          <input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="" style={{ ...S.input, flex: 1, fontSize: 14, padding: '11px 14px', background: 'rgba(0,0,0,0.3)', color: T.t1 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+            <button onClick={() => setLibZoom(z => Math.max(z - 1, -2))} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 14, color: libZoom <= -2 ? T.border : T.t2, cursor: libZoom <= -2 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>A-</button>
+            <button onClick={() => setLibZoom(z => Math.min(z + 1, 4))} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 14, color: libZoom >= 4 ? T.border : T.t2, cursor: libZoom >= 4 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>A+</button>
+          </div>
+        </div>
+        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12 + libZoom, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
+        {filtered.map(p => { const cc = CAT_C[p.category] || T.gold; const added = inStack.has(p.id); const z = libZoom;
           const insights = stack.length > 0 ? getCompoundInsights(p.id, stack, LIB) : [];
           const hasSynergy = insights.some(r => r.type === 'synergy');
           const hasCaution = insights.some(r => r.type === 'caution' || r.type === 'conflict');
@@ -1295,42 +1302,42 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
             <div key={p.id} style={{ marginBottom: 6 }}>
               <div onClick={() => setExpandedLibId(isExpanded ? null : p.id)} style={{ ...S.card, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderBottomLeftRadius: isExpanded ? 0 : undefined, borderBottomRightRadius: isExpanded ? 0 : undefined }}>
                 <div style={{ width: 3, height: 24, borderRadius: 2, background: cc, opacity: 0.6 }} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 15, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>{dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}</div><div style={{ fontSize: 12, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 15 + z, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>{dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}</div><div style={{ fontSize: 12 + z, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div></div>
                 <span style={{ fontSize: 14, color: T.t3, transition: 'transform .3s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>{'\u25BE'}</span>
               </div>
-              <div style={{ maxHeight: isExpanded ? 2000 : 0, overflow: 'hidden', transition: 'max-height .4s ease' }}>
+              <div style={{ maxHeight: isExpanded ? 3000 : 0, overflow: 'hidden', transition: 'max-height .4s ease' }}>
                 <div style={{ ...S.card, borderTop: `1px solid ${T.border}`, borderTopLeftRadius: 0, borderTopRightRadius: 0, padding: '14px 12px' }}>
                   {/* Evidence rating */}
                   {p.evidence != null && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 13 }}>
-                      <span style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Evidence</span>
+                      <span style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Evidence</span>
                       <div style={{ display: 'flex', gap: 3 }}>
-                        {[1,2,3,4,5].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i <= p.evidence ? T.gold : 'rgba(255,255,255,0.08)' }} />)}
+                        {[1,2,3,4,5].map(i => <div key={i} style={{ width: 8 + z * 0.5, height: 8 + z * 0.5, borderRadius: '50%', background: i <= p.evidence ? T.gold : 'rgba(255,255,255,0.08)' }} />)}
                       </div>
                     </div>
                   )}
                   {/* Half-life & peak chips */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 13 }}>
-                    {p.halfLifeHours != null && <span style={{ fontSize: 12, fontFamily: T.fm, color: T.teal, background: 'rgba(0,210,180,0.08)', padding: '4px 10px', borderRadius: 8 }}>t½ {p.halfLifeHours >= 24 ? (p.halfLifeHours / 24).toFixed(0) + 'd' : p.halfLifeHours + 'h'}</span>}
-                    {p.peakPlasmaMinutes != null && <span style={{ fontSize: 12, fontFamily: T.fm, color: T.purple, background: 'rgba(150,120,220,0.08)', padding: '4px 10px', borderRadius: 8 }}>peak {p.peakPlasmaMinutes >= 60 ? (p.peakPlasmaMinutes / 60).toFixed(1) + 'h' : p.peakPlasmaMinutes + 'min'}</span>}
-                    {p.administration && <span style={{ fontSize: 12, fontFamily: T.fm, color: T.t2, background: 'rgba(255,255,255,0.04)', padding: '4px 10px', borderRadius: 8 }}>{p.administration}</span>}
+                    {p.halfLifeHours != null && <span style={{ fontSize: 12 + z, fontFamily: T.fm, color: T.teal, background: 'rgba(0,210,180,0.08)', padding: '4px 10px', borderRadius: 8 }}>t½ {p.halfLifeHours >= 24 ? (p.halfLifeHours / 24).toFixed(0) + 'd' : p.halfLifeHours + 'h'}</span>}
+                    {p.peakPlasmaMinutes != null && <span style={{ fontSize: 12 + z, fontFamily: T.fm, color: T.purple, background: 'rgba(150,120,220,0.08)', padding: '4px 10px', borderRadius: 8 }}>peak {p.peakPlasmaMinutes >= 60 ? (p.peakPlasmaMinutes / 60).toFixed(1) + 'h' : p.peakPlasmaMinutes + 'min'}</span>}
+                    {p.administration && <span style={{ fontSize: 12 + z, fontFamily: T.fm, color: T.t2, background: 'rgba(255,255,255,0.04)', padding: '4px 10px', borderRadius: 8 }}>{p.administration}</span>}
                   </div>
                   {/* Mechanism */}
                   {p.mechanism && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Mechanism</div>
-                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.mechanism}</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Mechanism</div>
+                      <div style={{ fontSize: 13 + z, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.mechanism}</div>
                     </div>
                   )}
                   {/* Timeline - horizontal scroll */}
                   {timelineKeys.length > 0 && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Timeline</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Timeline</div>
                       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' }}>
                         {timelineKeys.map(k => (
-                          <div key={k} style={{ minWidth: 150, maxWidth: 200, flexShrink: 0, background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: '10px 12px', border: `1px solid ${T.border}` }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: T.gold, fontFamily: T.fm, marginBottom: 4, textTransform: 'capitalize' }}>{k.replace('week', 'Week ')}</div>
-                            <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.timeline[k]}</div>
+                          <div key={k} style={{ minWidth: 150 + z * 5, maxWidth: 200 + z * 5, flexShrink: 0, background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: '10px 12px', border: `1px solid ${T.border}` }}>
+                            <div style={{ fontSize: 12 + z, fontWeight: 700, color: T.gold, fontFamily: T.fm, marginBottom: 4, textTransform: 'capitalize' }}>{k.replace('week', 'Week ')}</div>
+                            <div style={{ fontSize: 12 + z, color: T.t2, fontFamily: T.fb, lineHeight: 1.5 }}>{p.timeline[k]}</div>
                           </div>
                         ))}
                       </div>
@@ -1339,46 +1346,46 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                   {/* Side effects - amber pills */}
                   {p.sideEffects && p.sideEffects.length > 0 && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Side Effects</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Side Effects</div>
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                        {p.sideEffects.map((se, i) => <span key={i} style={{ fontSize: 12, fontFamily: T.fm, color: T.warnT, background: T.warn, padding: '4px 10px', borderRadius: 8 }}>{se}</span>)}
+                        {p.sideEffects.map((se, i) => <span key={i} style={{ fontSize: 12 + z, fontFamily: T.fm, color: T.warnT, background: T.warn, padding: '4px 10px', borderRadius: 8 }}>{se}</span>)}
                       </div>
                     </div>
                   )}
                   {/* Contraindications - red pills */}
                   {p.contraindications && p.contraindications.length > 0 && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Contraindications</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Contraindications</div>
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                        {p.contraindications.map((ci, i) => <span key={i} style={{ fontSize: 12, fontFamily: T.fm, color: 'rgba(220,80,80,0.85)', background: 'rgba(220,80,80,0.08)', padding: '4px 10px', borderRadius: 8 }}>{ci}</span>)}
+                        {p.contraindications.map((ci, i) => <span key={i} style={{ fontSize: 12 + z, fontFamily: T.fm, color: 'rgba(220,80,80,0.85)', background: 'rgba(220,80,80,0.08)', padding: '4px 10px', borderRadius: 8 }}>{ci}</span>)}
                       </div>
                     </div>
                   )}
                   {/* Cycling protocol - purple card */}
                   {p.cyclingProtocol && (
                     <div style={{ marginBottom: 13, background: 'rgba(150,120,220,0.06)', borderRadius: 8, padding: '12px 14px', border: '1px solid rgba(150,120,220,0.12)' }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.purple, fontFamily: T.fm, marginBottom: 4 }}>Cycling Protocol</div>
-                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.cyclingProtocol}</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.purple, fontFamily: T.fm, marginBottom: 4 }}>Cycling Protocol</div>
+                      <div style={{ fontSize: 13 + z, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.cyclingProtocol}</div>
                     </div>
                   )}
                   {/* Synergies - teal card */}
                   {p.synergiesNotes && (
                     <div style={{ marginBottom: 13, background: 'rgba(0,210,180,0.06)', borderRadius: 8, padding: '12px 14px', border: '1px solid rgba(0,210,180,0.12)' }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, marginBottom: 4 }}>Synergies</div>
-                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.synergiesNotes}</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, marginBottom: 4 }}>Synergies</div>
+                      <div style={{ fontSize: 13 + z, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.synergiesNotes}</div>
                     </div>
                   )}
                   {/* Research notes */}
                   {p.researchNotes && (
                     <div style={{ marginBottom: 13 }}>
-                      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Research Notes</div>
-                      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.researchNotes}</div>
+                      <div style={{ fontSize: 11 + z, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Research Notes</div>
+                      <div style={{ fontSize: 13 + z, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>{p.researchNotes}</div>
                     </div>
                   )}
                   {/* Add/Remove button */}
                   <div style={{ marginTop: 4 }}>
-                    {added ? <button onClick={(e) => { e.stopPropagation(); const idx = stack.findIndex(s => s.compoundId === p.id); if (idx >= 0 && window.confirm('Remove ' + p.name + ' from stack?')) { const ns = [...stack]; ns.splice(idx, 1); setStack(ns); } }} style={{ ...S.pill, fontSize: 13, padding: '10px 14px', color: 'rgba(220,80,80,0.7)', borderColor: 'rgba(220,80,80,0.2)', width: '100%', textAlign: 'center' }}>Remove from Stack</button>
-                      : <button onClick={(e) => { e.stopPropagation(); openAdd(p); }} style={{ ...S.pill, fontSize: 13, padding: '10px 14px', borderColor: cc, color: cc, width: '100%', textAlign: 'center' }}>+ Add to Stack</button>}
+                    {added ? <button onClick={(e) => { e.stopPropagation(); const idx = stack.findIndex(s => s.compoundId === p.id); if (idx >= 0 && window.confirm('Remove ' + p.name + ' from stack?')) { const ns = [...stack]; ns.splice(idx, 1); setStack(ns); } }} style={{ ...S.pill, fontSize: 13 + z, padding: '10px 14px', color: 'rgba(220,80,80,0.7)', borderColor: 'rgba(220,80,80,0.2)', width: '100%', textAlign: 'center' }}>Remove from Stack</button>
+                      : <button onClick={(e) => { e.stopPropagation(); openAdd(p); }} style={{ ...S.pill, fontSize: 13 + z, padding: '10px 14px', borderColor: cc, color: cc, width: '100%', textAlign: 'center' }}>+ Add to Stack</button>}
                   </div>
                 </div>
               </div>

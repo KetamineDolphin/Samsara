@@ -1,4 +1,4 @@
-/* SAMSARA v3.0 - MetricsTab with Charts + Dual-axis Recomp Signal + Labs */
+/* SAMSARA v4.0 - MetricsTab with Charts + Dual-axis Recomp Signal + Labs */
 import { useState, useEffect, useRef } from "react";
 import { Chart, registerables } from "chart.js";
 import T from '../utils/tokens';

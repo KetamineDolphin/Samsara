@@ -1,4 +1,4 @@
-/* SAMSARA v3.5 - Split localStorage with export/import + IndexedDB photo storage */
+/* SAMSARA v4.0 - Split localStorage with export/import + IndexedDB photo storage */
 import { useState, useEffect, useCallback } from "react";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

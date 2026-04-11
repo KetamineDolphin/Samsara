@@ -1,4 +1,4 @@
-/* SAMSARA v3.2 - TrackTab with timing groups, sites, vial freshness, escalation, tissue quality, timeline */
+/* SAMSARA v4.0 - TrackTab with timing groups, sites, vial freshness, escalation, tissue quality, timeline */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import T from '../utils/tokens';
 import S from '../utils/styles';

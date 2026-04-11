@@ -1,4 +1,4 @@
-/* SAMSARA v3.5 - BodyTab: Timeline | Check-in | Insights | Compare
+/* SAMSARA v4.0 - BodyTab: Timeline | Check-in | Insights | Compare
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Core AI-assisted body composition analysis module.
    Photo storage via IndexedDB, progress charts, before/after compare.

@@ -1,4 +1,4 @@
-/* SAMSARA v3.6 - CalcTab with interactive syringe */
+/* SAMSARA v4.0 - CalcTab with interactive syringe */
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import T from '../utils/tokens';
 import S from '../utils/styles';

@@ -1,4 +1,4 @@
-/* SAMSARA v3.4 - ProfileTab with Stack Editor, Pie Chart, Weekly Load, Library + Research Cards, Cost Calculator, Data Management */
+/* SAMSARA v4.0 - ProfileTab with Stack Editor, Pie Chart, Weekly Load, Library + Research Cards, Cost Calculator, Data Management */
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import T from '../utils/tokens';
 import { CAT_C } from '../utils/tokens';
@@ -1539,7 +1539,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
         </div>
 
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v3.7</div>
+          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v4.0</div>
           <div style={{ fontSize: 9, color: T.t4, fontFamily: T.fm, marginTop: 4 }}>Eastern philosophy meets biohacking precision</div>
         </div>
       </div>}

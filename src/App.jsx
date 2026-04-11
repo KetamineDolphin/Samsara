@@ -1,4 +1,4 @@
-/* SAMSARA v3.7 - Root Application */
+/* SAMSARA v4.0 - Root Application */
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import T from './utils/tokens';
 import S from './utils/styles';
@@ -13,6 +13,7 @@ import MetricsTab from './tabs/MetricsTab';
 import ProfileTab from './tabs/ProfileTab';
 import SearchOverlay from './components/SearchOverlay';
 import { DisclaimerGate } from './components/Disclaimers';
+import ErrorBoundary from './components/ErrorBoundary';
 import { detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, logSubjective, getSubjectiveChartData } from './data/analytics';
 import { initNotifications, isSupported } from './utils/notifications';
 
@@ -127,7 +128,7 @@ export default function App() {
   useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
 
   return (
-    <>
+    <ErrorBoundary>
       <style>{CSS}</style>
       {!profile || !profile.onboardingComplete ? (
         <OnboardingFlow profile={profile} setProfile={setProfile} onComplete={handleOnboardingComplete} settings={settings} setSettings={setSettings} />
@@ -154,6 +155,6 @@ export default function App() {
           })}</nav>
         </div>
       )}
-    </>
+    </ErrorBoundary>
   );
 }

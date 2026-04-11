@@ -1,60 +1,89 @@
-/* SAMSARA v3.4 - Local Push Notifications */
+/* SAMSARA v3.4 - Local Push Notifications (Capacitor + Web fallback) */
+
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 const PREFIX = 'samsara_notif_';
-const MAX_TIMEOUT = 2147483647; // ~24.8 days max for setTimeout
 
-// ─── Core API ──────────────────────────────────────────────────
+// ─── Capacitor detection ──────────────────────────────────────
+
+let _useCapacitor = false;
+try {
+  _useCapacitor = typeof LocalNotifications !== 'undefined' && !!LocalNotifications.schedule;
+} catch {
+  _useCapacitor = false;
+}
+
+// ─── Core API ─────────────────────────────────────────────────
 
 export function isSupported() {
+  if (_useCapacitor) return true;
   return 'Notification' in window && 'serviceWorker' in navigator;
 }
 
 export async function requestPermission() {
-  if (!isSupported()) return 'unsupported';
+  if (_useCapacitor) {
+    try {
+      const result = await LocalNotifications.requestPermissions();
+      // Capacitor returns { display: 'granted' | 'denied' | 'prompt' ... }
+      return result.display === 'granted' ? 'granted' : result.display === 'denied' ? 'denied' : 'default';
+    } catch {
+      return 'unsupported';
+    }
+  }
+  // Web fallback
+  if (!('Notification' in window)) return 'unsupported';
   const result = await Notification.requestPermission();
   return result; // 'granted' | 'denied' | 'default'
 }
 
-export async function showNow({ title, body, tag }) {
-  if (!isSupported() || Notification.permission !== 'granted') return;
-  const reg = await navigator.serviceWorker.ready;
-  await reg.showNotification(title, {
-    body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: tag || 'samsara',
-    vibrate: [100, 50, 100],
-  });
-}
+// ─── Web fallback helpers ─────────────────────────────────────
 
-// ─── Scheduling ────────────────────────────────────────────────
-
+const MAX_TIMEOUT = 2147483647;
 const _activeTimeouts = {};
 
-export async function scheduleNotification({ title, body, tag, delayMs }) {
-  if (!isSupported() || Notification.permission !== 'granted') return null;
-  // Clamp to max timeout; for longer delays, initNotifications reschedules on app open
+async function _webShowNow({ title, body, tag }) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
+        body,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: tag || 'samsara',
+        vibrate: [100, 50, 100],
+      });
+      return;
+    } catch { /* fall through to basic Notification */ }
+  }
+  new Notification(title, { body, tag: tag || 'samsara' });
+}
+
+function _webSchedule({ title, body, tag, delayMs }) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const clamped = Math.min(delayMs, MAX_TIMEOUT);
   const id = setTimeout(() => {
-    showNow({ title, body, tag });
+    _webShowNow({ title, body, tag });
     delete _activeTimeouts[tag || 'default'];
   }, clamped);
   if (tag) _activeTimeouts[tag] = id;
-  return id;
 }
 
-export function cancelNotification(timeoutId) {
-  clearTimeout(timeoutId);
-}
-
-function cancelByTag(tag) {
+function _webCancelByTag(tag) {
   if (_activeTimeouts[tag]) {
     clearTimeout(_activeTimeouts[tag]);
     delete _activeTimeouts[tag];
   }
 }
 
-// ─── localStorage persistence ──────────────────────────────────
+function _webCancelAll() {
+  for (const tag of Object.keys(_activeTimeouts)) {
+    clearTimeout(_activeTimeouts[tag]);
+  }
+  Object.keys(_activeTimeouts).forEach(k => delete _activeTimeouts[k]);
+}
+
+// ─── localStorage persistence ─────────────────────────────────
 
 export function getScheduledKeys() {
   const keys = [];
@@ -79,54 +108,168 @@ export function clearSchedule(key) {
   localStorage.removeItem(PREFIX + key);
 }
 
-// ─── Specific Schedulers ───────────────────────────────────────
+// ─── Capacitor scheduling helpers ─────────────────────────────
 
-function msUntilTime(hour, minute) {
+let _nextNotifId = 1;
+const _tagToIds = {}; // tag -> [id, ...]
+
+function _allocId(tag) {
+  const id = _nextNotifId++;
+  if (tag) {
+    if (!_tagToIds[tag]) _tagToIds[tag] = [];
+    _tagToIds[tag].push(id);
+  }
+  return id;
+}
+
+async function _capacitorCancelByTag(tag) {
+  if (!_tagToIds[tag] || _tagToIds[tag].length === 0) return;
+  try {
+    await LocalNotifications.cancel({
+      notifications: _tagToIds[tag].map(id => ({ id })),
+    });
+  } catch { /* ignore */ }
+  delete _tagToIds[tag];
+}
+
+async function _capacitorCancelAll() {
+  const allIds = Object.values(_tagToIds).flat();
+  if (allIds.length > 0) {
+    try {
+      await LocalNotifications.cancel({
+        notifications: allIds.map(id => ({ id })),
+      });
+    } catch { /* ignore */ }
+  }
+  Object.keys(_tagToIds).forEach(k => delete _tagToIds[k]);
+}
+
+async function _capacitorSchedule({ title, body, tag, atDate }) {
+  const id = _allocId(tag);
+  try {
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id,
+          title,
+          body,
+          schedule: { at: atDate },
+          sound: undefined,
+          extra: { tag: tag || 'samsara' },
+        },
+      ],
+    });
+  } catch (err) {
+    console.warn('[Samsara] Failed to schedule notification:', err);
+  }
+  return id;
+}
+
+async function _capacitorShowNow({ title, body, tag }) {
+  const id = _allocId(tag);
+  try {
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id,
+          title,
+          body,
+          schedule: { at: new Date(Date.now() + 1000) }, // 1s from now
+          sound: undefined,
+          extra: { tag: tag || 'samsara' },
+        },
+      ],
+    });
+  } catch (err) {
+    console.warn('[Samsara] Failed to show notification:', err);
+  }
+}
+
+// ─── Unified schedule / cancel ────────────────────────────────
+
+async function cancelByTag(tag) {
+  if (_useCapacitor) {
+    await _capacitorCancelByTag(tag);
+  } else {
+    _webCancelByTag(tag);
+  }
+}
+
+async function cancelAll() {
+  if (_useCapacitor) {
+    await _capacitorCancelAll();
+  } else {
+    _webCancelAll();
+  }
+}
+
+async function showNow({ title, body, tag }) {
+  if (_useCapacitor) {
+    await _capacitorShowNow({ title, body, tag });
+  } else {
+    await _webShowNow({ title, body, tag });
+  }
+}
+
+async function scheduleAt({ title, body, tag, atDate }) {
+  if (_useCapacitor) {
+    return _capacitorSchedule({ title, body, tag, atDate });
+  }
+  // Web fallback: use delay
+  const delayMs = Math.max(0, atDate.getTime() - Date.now());
+  _webSchedule({ title, body, tag, delayMs });
+}
+
+// ─── Time helpers ─────────────────────────────────────────────
+
+function nextTimeAt(hour, minute) {
   const now = new Date();
   const target = new Date(now);
   target.setHours(hour, minute, 0, 0);
   if (target <= now) target.setDate(target.getDate() + 1);
-  return target - now;
+  return target;
 }
 
-function msUntilDayTime(dayOfWeek, hour) {
+function nextDayTimeAt(dayOfWeek, hour) {
   const now = new Date();
   const target = new Date(now);
   target.setHours(hour, 0, 0, 0);
   let daysAhead = dayOfWeek - now.getDay();
   if (daysAhead < 0 || (daysAhead === 0 && target <= now)) daysAhead += 7;
   target.setDate(target.getDate() + daysAhead);
-  return target - now;
+  return target;
 }
 
+// ─── Specific Schedulers ──────────────────────────────────────
+
 export async function scheduleDailyReminder({ hourOfDay, minuteOfDay, message }) {
-  cancelByTag('daily_reminder');
-  const delay = msUntilTime(hourOfDay, minuteOfDay);
+  await cancelByTag('daily_reminder');
+  const atDate = nextTimeAt(hourOfDay, minuteOfDay);
   saveSchedule('daily_reminder', { hourOfDay, minuteOfDay, message });
-  return scheduleNotification({
+  return scheduleAt({
     title: 'Protocol Reminder',
     body: message || 'Time to log your compounds',
     tag: 'daily_reminder',
-    delayMs: delay,
+    atDate,
   });
 }
 
 export async function scheduleWeeklyDose({ compound, dayOfWeek, hour }) {
   const tag = 'weekly_' + compound.id;
-  cancelByTag(tag);
-  const delay = msUntilDayTime(dayOfWeek, hour || 9);
+  await cancelByTag(tag);
+  const atDate = nextDayTimeAt(dayOfWeek, hour || 9);
   saveSchedule(tag, { compoundId: compound.id, compoundName: compound.name, dayOfWeek, hour: hour || 9 });
-  return scheduleNotification({
+  return scheduleAt({
     title: 'Weekly Dose: ' + compound.name,
     body: 'Time for your weekly ' + compound.name + ' injection',
     tag,
-    delayMs: delay,
+    atDate,
   });
 }
 
 export async function scheduleVialExpiry({ compoundName, reconDate, shelfLifeDays }) {
   const tag = 'expiry_' + compoundName.replace(/\s+/g, '_').toLowerCase();
-  cancelByTag(tag);
+  await cancelByTag(tag);
   const recon = new Date(reconDate);
   const expiry = new Date(recon);
   expiry.setDate(expiry.getDate() + shelfLifeDays);
@@ -134,30 +277,30 @@ export async function scheduleVialExpiry({ compoundName, reconDate, shelfLifeDay
   warn.setDate(warn.getDate() - 3);
   warn.setHours(9, 0, 0, 0);
   const now = new Date();
-  let delay;
+  let atDate;
   if (warn <= now && expiry > now) {
-    // Already within 3 days — schedule for tomorrow 9am
+    // Already within 3 days -- schedule for tomorrow 9am
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(9, 0, 0, 0);
-    delay = tomorrow - now;
+    atDate = tomorrow;
   } else if (warn > now) {
-    delay = warn - now;
+    atDate = warn;
   } else {
     // Already expired
     return null;
   }
   saveSchedule(tag, { compoundName, reconDate, shelfLifeDays });
-  return scheduleNotification({
+  return scheduleAt({
     title: 'Vial Expiring: ' + compoundName,
     body: compoundName + ' vial expires in 3 days. Check your supply.',
     tag,
-    delayMs: delay,
+    atDate,
   });
 }
 
 export async function scheduleStreakRisk({ dailyCompounds, logs }) {
-  cancelByTag('streak_risk');
+  await cancelByTag('streak_risk');
   const today = new Date().toISOString().slice(0, 10);
   const todayLogs = (logs || []).filter(l => l.date === today);
   const loggedIds = new Set(todayLogs.map(l => l.compoundId));
@@ -170,41 +313,54 @@ export async function scheduleStreakRisk({ dailyCompounds, logs }) {
   const eightPm = new Date(now);
   eightPm.setHours(20, 0, 0, 0);
   if (eightPm <= now) {
-    // Already past 8pm — show now if still missing
-    showNow({
+    // Already past 8pm -- show now if still missing
+    await showNow({
       title: 'Don\'t break your streak',
       body: missing.length + ' compound' + (missing.length > 1 ? 's' : '') + ' still need logging today',
       tag: 'streak_risk',
     });
     return null;
   }
-  const delay = eightPm - now;
   saveSchedule('streak_risk', { count: missing.length });
-  return scheduleNotification({
+  return scheduleAt({
     title: 'Don\'t break your streak',
     body: missing.length + ' compound' + (missing.length > 1 ? 's' : '') + ' still need logging today',
     tag: 'streak_risk',
-    delayMs: delay,
+    atDate: eightPm,
   });
 }
 
 export async function scheduleSundaySummary() {
-  cancelByTag('sunday_summary');
-  const delay = msUntilDayTime(0, 9); // Sunday 9am
+  await cancelByTag('sunday_summary');
+  const atDate = nextDayTimeAt(0, 9); // Sunday 9am
   saveSchedule('sunday_summary', { enabled: true });
-  return scheduleNotification({
+  return scheduleAt({
     title: 'Weekly Review Ready',
     body: 'See how your protocol performed this week',
     tag: 'sunday_summary',
-    delayMs: delay,
+    atDate,
   });
 }
 
-// ─── Master Init ───────────────────────────────────────────────
+// ─── Master Init ──────────────────────────────────────────────
 
 export async function initNotifications({ stack, vials, logs, settings }) {
-  if (!isSupported() || Notification.permission !== 'granted') return;
+  if (!isSupported()) return;
+
+  // Check permission (Capacitor or Web)
+  if (_useCapacitor) {
+    try {
+      const perm = await LocalNotifications.checkPermissions();
+      if (perm.display !== 'granted') return;
+    } catch { return; }
+  } else {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  }
+
   if (!settings) return;
+
+  // Clear all previous scheduled notifications to avoid duplicates
+  await cancelAll();
 
   // 1. Daily reminder
   if (settings.dailyReminderEnabled) {
@@ -214,7 +370,6 @@ export async function initNotifications({ stack, vials, logs, settings }) {
       message: 'Time to log your compounds',
     });
   } else {
-    cancelByTag('daily_reminder');
     clearSchedule('daily_reminder');
   }
 
@@ -255,7 +410,6 @@ export async function initNotifications({ stack, vials, logs, settings }) {
   if (settings.sundaySummaryEnabled) {
     await scheduleSundaySummary();
   } else {
-    cancelByTag('sunday_summary');
     clearSchedule('sunday_summary');
   }
 }

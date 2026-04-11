@@ -178,6 +178,9 @@ function getStatusColor(status) {
 }
 
 async function runBloodworkAnalysis(result, stack, previousResults, setLabResults, profile) {
+  if (!navigator.onLine) {
+    return { success: false, error: 'No internet connection. Lab analysis requires an internet connection to process your results. Connect to Wi-Fi or cellular and try again.' };
+  }
   try {
     const markersStr = Object.entries(result.parsedMarkers || {})
       .filter(([, v]) => v != null && v !== '')
@@ -244,6 +247,7 @@ Analyze this bloodwork in the context of the active protocol. Return only the JS
 }
 
 async function extractFromImage(base64) {
+  if (!navigator.onLine) throw new Error('No internet connection. Connect to Wi-Fi or cellular and try again.');
   const prompt = `You are extracting values from a bloodwork lab report image. Return ONLY a JSON object with marker keys and numeric values. Use these exact keys where applicable: ${Object.keys(MARKER_LABELS).join(', ')}. Also include a date field if visible (YYYY-MM-DD). Example: {"date":"2026-03-15","totalTestosterone":850,"estradiol":28,"hematocrit":48.2}. No other text.`;
   const res = await fetch('/api/analyze', {
     method: 'POST',
@@ -271,6 +275,7 @@ async function extractFromImage(base64) {
 }
 
 async function extractFromPDF(base64) {
+  if (!navigator.onLine) throw new Error('No internet connection. Connect to Wi-Fi or cellular and try again.');
   const prompt = `You are extracting values from a bloodwork lab report PDF. Return ONLY a JSON object with marker keys and numeric values. Use these exact keys where applicable: ${Object.keys(MARKER_LABELS).join(', ')}. Also include a "date" field if visible (YYYY-MM-DD) and a "label" field with the lab provider name if visible (e.g. "Quest March 2026"). Example: {"date":"2026-03-15","label":"Quest Diagnostics","totalTestosterone":850,"estradiol":28,"hematocrit":48.2}. No other text.`;
   const res = await fetch('/api/analyze', {
     method: 'POST',

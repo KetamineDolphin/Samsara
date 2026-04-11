@@ -617,6 +617,11 @@ export default function BodyTab({
       ]}],
     };
     setLastPayload(payload);
+    if (!navigator.onLine) {
+      setError({ title: 'No Internet Connection', detail: 'Body analysis requires an internet connection to process your photos. Connect to Wi-Fi or cellular and try again.', retryable: true });
+      setAnalyzing(false);
+      return;
+    }
     abortRef.current = new AbortController();
     const result = await sendAnalysisRequest(payload, abortRef.current.signal);
     processAnalysisResponse(result);

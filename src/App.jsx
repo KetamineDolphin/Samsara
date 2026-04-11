@@ -15,6 +15,8 @@ import SearchOverlay from './components/SearchOverlay';
 import { DisclaimerGate } from './components/Disclaimers';
 import { detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, logSubjective, getSubjectiveChartData } from './data/analytics';
 import { initNotifications, isSupported } from './utils/notifications';
+import { useAutoSync, getCurrentUserId, onAuthChange } from './hooks/useSync';
+import { isCloudConfigured } from './utils/supabase';
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Libre+Franklin:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
@@ -79,6 +81,19 @@ export default function App() {
     unitSystem: 'imperial',
     tier: 'free',
   });
+
+  // Cloud sync — track auth state and auto-push on data changes
+  const [cloudUserId, setCloudUserId] = useState(null);
+  useEffect(() => {
+    if (!isCloudConfigured()) return;
+    getCurrentUserId().then(id => { if (id) setCloudUserId(id); });
+    const unsub = onAuthChange((_event, session) => {
+      setCloudUserId(session?.user?.id || null);
+    });
+    return unsub;
+  }, []);
+  // Auto-sync: pushes to Supabase when any synced data changes (debounced)
+  useAutoSync(cloudUserId, [settings, stack, logs, vials, checkins, siteHistory, subjective, labResults, profile]);
 
   const tab = settings.tab || 'CALC';
   const setTab = (t) => setSettings(p => ({ ...p, tab: t }));

@@ -454,7 +454,7 @@ export function getAdherenceStats(logs, stack, days) {
   const byCompound = stack.map((compound) => {
     const freq = compound.frequency || 'daily';
     const compLogs = safeLogs.filter(
-      (l) => l.compoundId === compound.id && l.date >= startDate && l.date <= today
+      (l) => (l.cid === compound.id || l.compoundId === compound.id) && l.date >= startDate && l.date <= today
     );
 
     let expected = 0;
@@ -497,7 +497,7 @@ export function getAdherenceStats(logs, stack, days) {
       const d = addDays(today, -i);
       const dayLogs = safeLogs.filter((l) => l.date === d);
       const allLogged = dailyCompounds.every(
-        (c) => dayLogs.some((l) => l.compoundId === c.id)
+        (c) => dayLogs.some((l) => l.cid === c.id || l.compoundId === c.id)
       );
 
       if (allLogged) {
@@ -523,7 +523,7 @@ export function getAdherenceStats(logs, stack, days) {
 
       const dayLogs = safeLogs.filter((l) => l.date === d);
       const logged = dailyCompounds.filter(
-        (c) => dayLogs.some((l) => l.compoundId === c.id)
+        (c) => dayLogs.some((l) => l.cid === c.id || l.compoundId === c.id)
       ).length;
       dayTotals[dow] += logged / dailyCompounds.length;
     }

@@ -13,6 +13,7 @@ import { SamsaraSymbol, Enso } from '../components/Shared';
 // Pro gating removed — all features unlocked
 import { AIDisclaimer } from '../components/Disclaimers';
 import { savePhoto, getPhotosForCheckin } from '../hooks/useStorage';
+import DexaScan from '../components/DexaScan';
 
 Chart.register(...registerables);
 
@@ -20,7 +21,7 @@ Chart.register(...registerables);
    CONSTANTS
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const VIEWS = ['Timeline', 'Check-in', 'Insights', 'Compare'];
+const VIEWS = ['Timeline', 'Check-in', 'Insights', 'Compare', 'Scan'];
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const REQUEST_TIMEOUT = 90_000;
@@ -1539,6 +1540,7 @@ export default function BodyTab({
       {activeView === 'Check-in' && renderCheckin()}
       {activeView === 'Insights' && renderInsights()}
       {activeView === 'Compare' && renderCompare()}
+      {activeView === 'Scan' && <DexaScan checkins={checkins} setCheckins={setCheckins} stack={stack} profile={profile} />}
 
       {renderLightbox()}
     </div>

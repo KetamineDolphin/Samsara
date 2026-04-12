@@ -1542,7 +1542,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
         </div>
 
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v3.7</div>
+          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v4.0</div>
           <div style={{ fontSize: 9, color: T.t4, fontFamily: T.fm, marginTop: 4 }}>Eastern philosophy meets biohacking precision</div>
         </div>
       </div>}

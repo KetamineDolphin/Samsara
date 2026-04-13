@@ -251,7 +251,7 @@ export async function signUp(email, password) {
   if (!supabase) return { error: 'Cloud sync not configured' };
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return { error: error.message };
-  return { user: data.user, session: data.session };
+  return { user: data.user, session: data.session, needsVerification: !data.session };
 }
 
 /** Sign in with email + password */
@@ -262,10 +262,26 @@ export async function signIn(email, password) {
   return { user: data.user, session: data.session };
 }
 
-/** Sign in with magic link (passwordless) */
-export async function signInMagicLink(email) {
+/** Send OTP code to email (passwordless sign-in) */
+export async function sendOtp(email) {
   if (!supabase) return { error: 'Cloud sync not configured' };
   const { error } = await supabase.auth.signInWithOtp({ email });
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+/** Verify OTP code — works for both signup confirmation and passwordless sign-in */
+export async function verifyOtp(email, token, type = 'email') {
+  if (!supabase) return { error: 'Cloud sync not configured' };
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type });
+  if (error) return { error: error.message };
+  return { user: data.user, session: data.session };
+}
+
+/** Resend OTP confirmation email for signup */
+export async function resendSignupOtp(email) {
+  if (!supabase) return { error: 'Cloud sync not configured' };
+  const { error } = await supabase.auth.resend({ type: 'signup', email });
   if (error) return { error: error.message };
   return { success: true };
 }

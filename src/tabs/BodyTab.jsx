@@ -1,4 +1,4 @@
-/* SAMSARA v4.0 - BodyTab: Timeline | Check-in | Insights | Compare
+/* SAMSARA v4.0 - BodyTab: Log | Check | Insights | Compare | Scan
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Core AI-assisted body composition analysis module.
    Photo storage via IndexedDB, progress charts, before/after compare.
@@ -21,7 +21,8 @@ Chart.register(...registerables);
    CONSTANTS
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const VIEWS = ['Timeline', 'Check-in', 'Insights', 'Compare', 'Scan'];
+const VIEW_LABELS = { Log: 'Log', Check: 'Check', Insights: 'Insights', Compare: 'Compare', Scan: 'Scan' };
+const VIEWS = Object.keys(VIEW_LABELS);
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const REQUEST_TIMEOUT = 90_000;
@@ -96,7 +97,32 @@ Assessment principles:
 - When previous data is provided, focus comparedToLast on measurable visual deltas.
 - Flag anything concerning: injection site reactions, unusual swelling, skin changes.
 - If a flexed photo is provided, note muscle hardness, peak contraction quality, and compare relaxed vs flexed separation.
-- peptideRecommendations must be grounded in visual evidence. Do not recommend compounds without tying them to something observable.`;
+- peptideRecommendations must be grounded in visual evidence. Do not recommend compounds without tying them to something observable.
+- Assess ONLY what is visible in the photo(s). Do not let protocol duration, compound names, or any non-visual context bias your body fat estimate, muscle assessment, or rate score.
+- The same photo must produce the same results regardless of whether it is day 1 or day 100 of a protocol.
+- Be honest and consistent. Never inflate or deflate estimates based on expected timeline or protocol. A clinician reports what the scan shows, period.`;
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   AI WEIGHT / WAIST ESTIMATION PROMPT
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const ESTIMATE_PROMPT = `You are a clinical body composition estimator. Given a physique photo, estimate the subject's body weight and waist circumference based on visual assessment.
+
+Return ONLY a valid JSON object — no markdown, no backticks, no explanation:
+{
+  "weightLbs": 185,
+  "waistInches": 34.5,
+  "confidence": "medium",
+  "notes": "Brief 1-sentence note on estimation basis"
+}
+
+Rules:
+- weightLbs: integer, estimate in pounds based on visible frame size, muscle mass, and fat distribution
+- waistInches: one decimal, estimate in inches at navel level based on visible midsection
+- confidence: "high" (clear full-body view, good lighting), "medium" (partial view or average conditions), "low" (obstructed/poor quality)
+- Use the subject's height and biological sex if provided to improve accuracy
+- Be precise — give a single best estimate, not a range
+- Assess ONLY what is visible. Do not let any non-visual context bias your estimates.`;
 
 const LOADING_TIPS = [
   'Analyzing body composition...',
@@ -336,28 +362,30 @@ function PhotoSlot({ slot, photo, thumb, compressing, onCapture, onRemove }) {
   const hasPhoto = !!photo;
   const isCompressing = compressing === slot.key;
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ ...S.label, marginBottom: 6 }}>{slot.label}{slot.required ? ' *' : ''}</label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ padding: '12px', background: T.card, border: `1px solid ${hasPhoto ? T.goldM : T.border}`, borderRadius: 12, marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {thumb ? (
-          <div onClick={() => onRemove(slot.key)} style={{ position: 'relative', cursor: 'pointer' }} title="Tap to remove">
-            <img src={'data:image/jpeg;base64,' + thumb} alt={slot.label} style={{ width: 48, height: 64, objectFit: 'cover', borderRadius: 6, border: `2px solid ${T.goldM}` }} />
-            <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%', background: 'rgba(220,80,80,0.9)', color: '#fff', fontSize: 10, lineHeight: '16px', textAlign: 'center', fontFamily: T.fm, fontWeight: 700 }}>{'\u00D7'}</div>
+          <div onClick={() => onRemove(slot.key)} style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }} title="Tap to remove">
+            <img src={'data:image/jpeg;base64,' + thumb} alt={slot.label} style={{ width: 52, height: 68, objectFit: 'cover', borderRadius: 8, border: `1px solid rgba(255,255,255,0.08)`, boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }} />
+            <div style={{ position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: 'rgba(220,80,80,0.9)', color: '#fff', fontSize: 11, lineHeight: '18px', textAlign: 'center', fontFamily: T.fm, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>{'\u00D7'}</div>
           </div>
         ) : (
-          <div style={{ width: 48, height: 64, borderRadius: 6, border: `1px dashed ${slot.required ? T.goldM : T.border}`, background: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 18, color: T.t3 }}>{'\u{1F4F7}'}</span>
+          <div style={{ width: 52, height: 68, borderRadius: 8, border: `1px dashed ${slot.required ? 'rgba(201,168,76,0.3)' : 'rgba(255,255,255,0.08)'}`, background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, flexShrink: 0 }}>
+            <span style={{ fontSize: 16, opacity: 0.4 }}>{'\u{1F4F7}'}</span>
           </div>
         )}
-        <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-          <label style={{ ...S.logBtn, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: isCompressing ? 0.5 : 1, flex: 1, justifyContent: 'center', fontSize: 11 }}>
-            {isCompressing ? 'Processing...' : hasPhoto ? '\u2713 Retake' : '\u{1F4F8} Camera'}
-            <input type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} disabled={isCompressing} />
-          </label>
-          <label style={{ ...S.newVialBtn, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: isCompressing ? 0.5 : 1, flex: 1, justifyContent: 'center', fontSize: 11, textAlign: 'center' }}>
-            {'\u{1F4C1}'} Upload
-            <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={handleFile} style={{ display: 'none' }} disabled={isCompressing} />
-          </label>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: T.t1, fontFamily: T.fb, marginBottom: 6 }}>{slot.label}{slot.required ? <span style={{ color: T.gold, marginLeft: 3 }}>*</span> : ''}</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <label style={{ ...S.logBtn, padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, opacity: isCompressing ? 0.5 : 1, flex: 1, justifyContent: 'center', fontSize: 10, borderRadius: 6 }}>
+              {isCompressing ? 'Processing...' : hasPhoto ? '\u2713 Retake' : 'Camera'}
+              <input type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} disabled={isCompressing} />
+            </label>
+            <label style={{ ...S.newVialBtn, padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, opacity: isCompressing ? 0.5 : 1, flex: 1, justifyContent: 'center', fontSize: 10, textAlign: 'center', borderRadius: 6 }}>
+              Upload
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={handleFile} style={{ display: 'none' }} disabled={isCompressing} />
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -490,7 +518,7 @@ export default function BodyTab({
   const logs = (rawLogs || []).map(l => l.compoundId ? l : { ...l, compoundId: l.cid });
 
   /* --- view state --- */
-  const [activeView, setActiveView] = useState('Timeline');
+  const [activeView, setActiveView] = useState('Log');
   const [step, setStep] = useState(1);
   // Pre-fill stats from last checkin if available
   const lastCheckin = checkins.length > 0 ? checkins[checkins.length - 1] : null;
@@ -518,6 +546,9 @@ export default function BodyTab({
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ weight: '', waist: '', day: '' });
+  const [estimating, setEstimating] = useState(false);
+  const [estimateError, setEstimateError] = useState(null);
+  const [aiEstimate, setAiEstimate] = useState({ weight: false, waist: false });
 
   /* --- compare state --- */
   const [compareA, setCompareA] = useState(null);
@@ -607,14 +638,17 @@ export default function BodyTab({
     setAnalyzing(true); setError(null); setParseWarning(null); setStep(3);
     const prev = checkins.length > 0 ? checkins[checkins.length - 1] : null;
     const prevContext = prev
-      ? `Previous check-in (Day ${prev.day || '?'}, ${prev.weight} lbs, ${prev.waist}" waist): ${JSON.stringify(prev.analysis || {})}`
+      ? `Previous check-in (${prev.weight} lbs, ${prev.waist}" waist): ${JSON.stringify(prev.analysis || {})}`
       : 'First check-in - establish baseline.';
     const photoLabels = ['front', 'side', 'back', 'flex'].filter(k => photos[k]);
+    const stackCategories = stack.length > 0
+      ? stack.map(s => `${s.category || 'unknown'} (${s.dose || '?'}${s.unit || 'mcg'} ${s.freq || s.frequency || 'daily'})`).join('; ')
+      : 'none — recommend a starter protocol';
     const payload = {
       model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: ANALYSIS_PROMPT,
       messages: [{ role: 'user', content: [
         ...buildImageBlocks(photos),
-        { type: 'text', text: `Day ${stats.day || '?'}, ${stats.weight} lbs, ${stats.waist}" waist.\nPhotos: ${photoLabels.join(', ')} (${photoLabels.length}).\nActive peptide stack: ${stack.length > 0 ? stack.map(s => `${s.name} (${s.category || 'unknown'}, ${s.dose || '?'}${s.unit || 'mcg'} ${s.freq || s.frequency || 'daily'})`).join('; ') : 'none — recommend a starter protocol'}.\nGoal: ${profile?.primaryGoal || 'recomp'}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.\n${prevContext}` },
+        { type: 'text', text: `${stats.weight} lbs, ${stats.waist}" waist.\nPhotos: ${photoLabels.join(', ')} (${photoLabels.length}).\nActive protocol categories: ${stackCategories}.\nGoal: ${profile?.primaryGoal || 'recomp'}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.\n${prevContext}` },
       ]}],
     };
     setLastPayload(payload);
@@ -686,12 +720,46 @@ export default function BodyTab({
 
   const resetForm = useCallback(() => {
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
-    setActiveView('Timeline'); setStep(1);
+    setActiveView('Log'); setStep(1);
     setStats({ date: getToday(), day: '', weight: '', waist: '' });
     setPhotos({ front: null, side: null, back: null, flex: null });
     setThumbs({ front: null, side: null, back: null, flex: null });
     setAnalysis(null); setError(null); setParseWarning(null); setLastPayload(null); setCompressing(null);
+    setAiEstimate({ weight: false, waist: false }); setEstimateError(null);
   }, []);
+
+  /* ============================================================
+     AI WEIGHT / WAIST ESTIMATION
+     ============================================================ */
+
+  const runEstimate = useCallback(async (fields = ['weight', 'waist']) => {
+    if (!photos.front) return;
+    setEstimating(true); setEstimateError(null);
+    const heightStr = profile?.height ? `${profile.height.feet}'${profile.height.inches}"` : 'unknown';
+    const payload = {
+      model: 'claude-sonnet-4-20250514', max_tokens: 300, system: ESTIMATE_PROMPT,
+      messages: [{ role: 'user', content: [
+        ...buildImageBlocks(photos),
+        { type: 'text', text: `Estimate this person's ${fields.join(' and ')}.\nHeight: ${heightStr}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.` },
+      ]}],
+    };
+    try {
+      const result = await sendAnalysisRequest(payload, null);
+      if (result.parsed) {
+        const est = result.parsed;
+        setStats(p => ({
+          ...p,
+          ...(fields.includes('weight') && est.weightLbs ? { weight: String(Math.round(est.weightLbs)) } : {}),
+          ...(fields.includes('waist') && est.waistInches ? { waist: String(est.waistInches) } : {}),
+        }));
+      } else {
+        setEstimateError('Could not parse estimate. Enter manually.');
+      }
+    } catch {
+      setEstimateError('Estimation failed. Enter manually.');
+    }
+    setEstimating(false);
+  }, [photos, profile]);
 
   /* ============================================================
      DELETE / EDIT CHECKINS
@@ -781,9 +849,9 @@ export default function BodyTab({
      SHARED STYLES + HELPERS
      ============================================================ */
 
-  const goldCard = { background: 'rgba(201,168,76,0.025)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 14, padding: '16px', marginBottom: 14 };
+  const goldCard = { background: 'rgba(201,168,76,0.025)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 12, padding: '14px 16px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' };
   const sectionLabel = { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8 };
-  const statCard = { background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 10px', textAlign: 'center' };
+  const statCard = { background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 10px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.03)' };
 
   const REGION_FIELDS = [
     ['Body Fat', 'bodyFatEstimate'], ['Muscle Status', 'muscleStatus'],
@@ -809,9 +877,9 @@ export default function BodyTab({
   const renderSegments = () => (
     <div style={{ ...S.segWrap, overflowX: 'auto' }}>
       {VIEWS.map(v => (
-        <button key={v} onClick={() => { setActiveView(v); if (v === 'Check-in') setStep(1); }}
-          style={{ ...S.segBtn, ...(activeView === v ? S.segOn : {}), whiteSpace: 'nowrap', minWidth: 0 }}
-        >{v}{v === 'Scan' && !isPro && <ProBadge />}</button>
+        <button key={v} onClick={() => { setActiveView(v); if (v === 'Check') setStep(1); }}
+          style={{ ...S.segBtn, ...(activeView === v ? S.segOn : {}), whiteSpace: 'nowrap', minWidth: 0, padding: '7px 0', fontSize: 11, letterSpacing: 0.3 }}
+        >{VIEW_LABELS[v]}{v === 'Scan' && !isPro && <ProBadge />}</button>
       ))}
     </div>
   );
@@ -855,8 +923,8 @@ export default function BodyTab({
         {recentMilestones.length > 0 && (
           <div style={{ marginBottom: 14 }}>
             {recentMilestones.map((m, i) => (
-              <div key={i} style={{ border: `1px solid ${T.goldM}`, borderRadius: 8, padding: '8px 12px', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: T.gold, fontFamily: T.fb, fontWeight: 500 }}>{m.label}</span>
+              <div key={i} style={{ border: `1px solid ${T.goldM}`, borderRadius: 10, padding: '10px 14px', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: T.goldS }}>
+                <span style={{ fontSize: 12, color: T.gold, fontFamily: T.fb, fontWeight: 500, letterSpacing: 0.3 }}>{m.label}</span>
                 <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{m.date}</span>
               </div>
             ))}
@@ -883,18 +951,18 @@ export default function BodyTab({
           }
           if (daysSinceLast !== null && daysSinceLast >= 5) {
             return (
-              <div style={{ border: `1px solid ${T.goldM}`, borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: T.goldS, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ border: `1px solid ${T.goldM}`, borderRadius: 10, padding: '10px 14px', marginBottom: 12, background: T.goldS, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
                 <span style={{ fontSize: 18 }}>{'\u23F0'}</span>
                 <div>
                   <p style={{ fontSize: 12, color: T.gold, fontFamily: T.fb, fontWeight: 500 }}>{daysSinceLast} days since last check-in</p>
-                  <p style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>Consistent tracking drives better results. Tap Check-in to log today.</p>
+                  <p style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>Consistent tracking drives better results. Tap Check to log today.</p>
                 </div>
               </div>
             );
           }
           if (streak >= 2) {
             return (
-              <div style={{ border: `1px solid rgba(0,210,180,0.2)`, borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: 'rgba(0,210,180,0.03)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ border: `1px solid rgba(0,210,180,0.2)`, borderRadius: 10, padding: '10px 14px', marginBottom: 12, background: 'rgba(0,210,180,0.03)', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
                 <span style={{ fontSize: 18 }}>{'\uD83D\uDD25'}</span>
                 <div>
                   <p style={{ fontSize: 12, color: T.teal, fontFamily: T.fb, fontWeight: 500 }}>{streak}-week streak</p>
@@ -907,10 +975,10 @@ export default function BodyTab({
         })()}
 
         {checkins.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <SamsaraSymbol size={56} detail="full" />
-            <p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1 }}>Begin the record</p>
-            <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 8 }}>Tap Check-in to begin</p>
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <div style={{ opacity: 0.6 }}><SamsaraSymbol size={48} detail="full" /></div>
+            <p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2, marginTop: 14, letterSpacing: 1.5 }}>Begin the record</p>
+            <p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 6 }}>Tap Check to log your first entry</p>
           </div>
         ) : (
           <div>
@@ -942,16 +1010,20 @@ export default function BodyTab({
                     style={{ ...S.trackRow, marginBottom: 0, borderColor: isExpanded ? T.goldM : T.border, ...(isMostRecent ? { borderLeft: `3px solid ${T.gold}` } : {}) }}
                   >
                     {ci.thumbFront && (
-                      <img src={'data:image/jpeg;base64,' + ci.thumbFront} alt="" style={{ width: photoW, height: photoH, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}`, boxShadow: isMostRecent ? '0 2px 8px rgba(0,0,0,0.4)' : 'none' }} />
+                      <img src={'data:image/jpeg;base64,' + ci.thumbFront} alt="" style={{ width: photoW, height: photoH, objectFit: 'cover', borderRadius: 8, border: `1px solid rgba(255,255,255,0.06)`, boxShadow: '0 2px 8px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)' }} />
                     )}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, fontFamily: T.fb }}>Day {ci.day} {'\u00B7'} {ci.date}</div>
-                      <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{ci.weight} lbs {'\u00B7'} {ci.waist}" {'\u00B7'} {a.bodyFatEstimate || '-'}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, fontFamily: T.fb }}>Day {ci.day} <span style={{ color: T.t3, fontWeight: 400 }}>{'\u00B7'}</span> {ci.date}</div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                        {ci.weight > 0 && <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{ci.weight}<span style={{ color: T.t3, fontSize: 9 }}> lbs</span></span>}
+                        {ci.waist > 0 && <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{ci.waist}<span style={{ color: T.t3, fontSize: 9 }}>"</span></span>}
+                        {a.bodyFatEstimate && <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{a.bodyFatEstimate}</span>}
+                      </div>
                       {a.keyObservation && a.keyObservation !== 'Manual entry' && !a.keyObservation.startsWith('Analysis parse failed') && (
-                        <p style={{ fontSize: 11, color: T.gold, fontFamily: T.fb, marginTop: 4, lineHeight: 1.3 }}>{a.keyObservation}</p>
+                        <p style={{ fontSize: 11, color: T.gold, fontFamily: T.fb, marginTop: 5, lineHeight: 1.35, opacity: 0.85 }}>{a.keyObservation}</p>
                       )}
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: scoreColor(rate), fontFamily: T.fm }}>{rate || '-'}</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: scoreColor(rate), fontFamily: T.fm, lineHeight: 1 }}>{rate || '-'}</span>
                   </div>
 
                   {isExpanded && (
@@ -1042,9 +1114,9 @@ export default function BodyTab({
     if (!isPro && checkins.length >= FREE_CHECKIN_LIMIT) {
       return (
         <ProLock onUpgrade={onUpgrade} label="Check-in Limit Reached">
-          <div style={{ animation: 'fadeUp .4s ease both', minHeight: 200, padding: 20 }}>
-            <h2 style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1 }}>New Check-in</h2>
-            <p style={{ fontFamily: T.fm, fontSize: 12, color: T.t3 }}>Free accounts are limited to {FREE_CHECKIN_LIMIT} check-ins. Upgrade to Pro for unlimited tracking.</p>
+          <div style={{ animation: 'fadeUp .4s ease both', minHeight: 200, padding: '32px 20px', textAlign: 'center' }}>
+            <h2 style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1, letterSpacing: 1, marginBottom: 10 }}>New Check-in</h2>
+            <p style={{ fontFamily: T.fm, fontSize: 12, color: T.t3, lineHeight: 1.6 }}>Free accounts are limited to {FREE_CHECKIN_LIMIT} check-ins. Upgrade to Pro for unlimited tracking.</p>
           </div>
         </ProLock>
       );
@@ -1052,7 +1124,7 @@ export default function BodyTab({
     return (
       <div style={{ animation: 'fadeUp .4s ease both' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <button onClick={() => { setActiveView('Timeline'); setStep(1); }} style={{ background: 'none', border: 'none', color: T.t2, fontFamily: T.fm, fontSize: 12, cursor: 'pointer' }}>{'\u2190'} Back</button>
+          <button onClick={() => { setActiveView('Log'); setStep(1); }} style={{ background: 'none', border: 'none', color: T.t2, fontFamily: T.fm, fontSize: 12, cursor: 'pointer' }}>{'\u2190'} Back</button>
           <span style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Step {step} of 3</span>
         </div>
 
@@ -1076,23 +1148,56 @@ export default function BodyTab({
                 <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>This first check-in establishes your starting point. Weigh yourself in the morning before eating, and measure your waist at the navel.</div>
               </div>
             )}
-            {[['Day Number', 'day'], ['Weight (lbs)', 'weight'], ['Waist (inches)', 'waist']].map(([l, k]) => (
-              <div key={k} style={{ marginBottom: 14 }}>
-                <label style={S.label}>{l}</label>
-                <input type="number" inputMode="decimal" value={stats[k]} onChange={e => setStats(p => ({ ...p, [k]: e.target.value }))} style={{ ...S.input, width: '100%' }} />
+            <div style={{ ...S.card, padding: '16px', marginBottom: 14 }}>
+              {/* Day Number — always manual */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ ...S.label, fontSize: 10, marginBottom: 6 }}>Day Number</label>
+                <input type="number" inputMode="decimal" value={stats.day} onChange={e => setStats(p => ({ ...p, day: e.target.value }))} style={{ ...S.input, width: '100%' }} />
               </div>
-            ))}
-            {hasLastStats && stats.weight && stats.waist ? (
-              <button onClick={() => setStep(2)}
-                style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center' }}>
-                Skip to Photos {'\u2192'}
-              </button>
-            ) : (
-              <button onClick={() => setStep(2)} disabled={!stats.weight || !stats.waist}
-                style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center', opacity: stats.weight && stats.waist ? 1 : 0.4 }}>
-                Next: Photos {'\u2192'}
-              </button>
-            )}
+              {/* Weight — with AI estimate toggle */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Weight (lbs)</label>
+                  <button onClick={() => { setAiEstimate(p => ({ ...p, weight: !p.weight })); if (!aiEstimate.weight) setStats(p => ({ ...p, weight: '' })); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 10, color: aiEstimate.weight ? T.teal : T.t3, fontFamily: T.fm, fontWeight: aiEstimate.weight ? 600 : 400 }}>
+                      {aiEstimate.weight ? '\u2713 AI Estimate' : 'AI Estimate'}
+                    </span>
+                  </button>
+                </div>
+                {aiEstimate.weight ? (
+                  <div style={{ ...S.input, width: '100%', display: 'flex', alignItems: 'center', opacity: 0.6, color: T.teal, fontSize: 12, fontFamily: T.fm, boxSizing: 'border-box' }}>
+                    AI will estimate from your photos
+                  </div>
+                ) : (
+                  <input type="number" inputMode="decimal" value={stats.weight} onChange={e => setStats(p => ({ ...p, weight: e.target.value }))} style={{ ...S.input, width: '100%' }} />
+                )}
+              </div>
+              {/* Waist — with AI estimate toggle */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Waist (inches)</label>
+                  <button onClick={() => { setAiEstimate(p => ({ ...p, waist: !p.waist })); if (!aiEstimate.waist) setStats(p => ({ ...p, waist: '' })); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 10, color: aiEstimate.waist ? T.teal : T.t3, fontFamily: T.fm, fontWeight: aiEstimate.waist ? 600 : 400 }}>
+                      {aiEstimate.waist ? '\u2713 AI Estimate' : 'AI Estimate'}
+                    </span>
+                  </button>
+                </div>
+                {aiEstimate.waist ? (
+                  <div style={{ ...S.input, width: '100%', display: 'flex', alignItems: 'center', opacity: 0.6, color: T.teal, fontSize: 12, fontFamily: T.fm, boxSizing: 'border-box' }}>
+                    AI will estimate from your photos
+                  </div>
+                ) : (
+                  <input type="number" inputMode="decimal" value={stats.waist} onChange={e => setStats(p => ({ ...p, waist: e.target.value }))} style={{ ...S.input, width: '100%' }} />
+                )}
+              </div>
+            </div>
+            <button onClick={() => setStep(2)}
+              disabled={!stats.day && !aiEstimate.weight && !aiEstimate.waist && !stats.weight && !stats.waist}
+              style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center' }}>
+              Next: Photos {'\u2192'}
+            </button>
           </div>
         )}
 
@@ -1105,6 +1210,38 @@ export default function BodyTab({
             {error && !analyzing && <div style={{ ...S.warning, marginBottom: 14, marginTop: 0 }}>{error.title}: {error.detail}</div>}
             {PHOTO_SLOTS.map(slot => <PhotoSlot key={slot.key} slot={slot} photo={photos[slot.key]} thumb={thumbs[slot.key]} compressing={compressing} onCapture={handlePhoto} onRemove={removePhoto} />)}
             {photoCount > 0 && <div style={{ textAlign: 'center', padding: '8px 0', marginBottom: 8, fontSize: 11, color: T.gold, fontFamily: T.fm }}>{photoCount} photo{photoCount !== 1 ? 's' : ''} ready for analysis</div>}
+            {/* AI Weight/Waist Estimation — triggered by toggle in step 1 */}
+            {photos.front && (aiEstimate.weight || aiEstimate.waist) && (!stats.weight || !stats.waist) && (
+              <div style={{ ...S.card, padding: '14px', marginBottom: 12, borderColor: 'rgba(0,210,180,0.2)', background: 'rgba(0,210,180,0.03)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.teal, fontFamily: T.fb }}>
+                    {'\u2728'} AI Estimation
+                  </div>
+                  {estimating && <div style={{ width: 14, height: 14, border: '2px solid ' + T.teal, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+                </div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginBottom: 10, lineHeight: 1.5 }}>
+                  {aiEstimate.weight && aiEstimate.waist ? 'Estimating weight and waist' : aiEstimate.weight ? 'Estimating weight' : 'Estimating waist'} from your photo{photoCount > 1 ? 's' : ''}.
+                </div>
+                <button onClick={() => { const fields = []; if (aiEstimate.weight && !stats.weight) fields.push('weight'); if (aiEstimate.waist && !stats.waist) fields.push('waist'); if (fields.length) runEstimate(fields); }} disabled={estimating}
+                  style={{ ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center', fontSize: 11, opacity: estimating ? 0.5 : 1 }}>
+                  {estimating ? 'Analyzing photos...' : `Estimate ${aiEstimate.weight && aiEstimate.waist ? 'Weight & Waist' : aiEstimate.weight ? 'Weight' : 'Waist'}`}
+                </button>
+                {estimateError && <div style={{ fontSize: 10, color: T.red, fontFamily: T.fm, marginTop: 6 }}>{estimateError}</div>}
+              </div>
+            )}
+            {/* Show stats summary once filled (manually or via AI) */}
+            {stats.weight && stats.waist && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <div style={{ flex: 1, ...S.card, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, letterSpacing: 1.5, textTransform: 'uppercase' }}>Weight</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{stats.weight}<span style={{ fontSize: 11, color: T.t3 }}> lbs</span></div>
+                </div>
+                <div style={{ flex: 1, ...S.card, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, letterSpacing: 1.5, textTransform: 'uppercase' }}>Waist</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{stats.waist}<span style={{ fontSize: 11, color: T.t3 }}>"</span></div>
+                </div>
+              </div>
+            )}
             {showAIDisclaimer ? (
               <AIDisclaimer onProceed={handleDisclaimerProceed} onCancel={handleDisclaimerCancel} />
             ) : (
@@ -1414,9 +1551,10 @@ export default function BodyTab({
     } : null;
 
     const selectStyle = {
-      width: '100%', padding: '8px', background: 'rgba(0,0,0,0.4)',
-      border: `1px solid ${T.border}`, borderRadius: 6, color: T.t1,
+      width: '100%', padding: '8px 10px', background: 'rgba(0,0,0,0.35)',
+      border: `1px solid ${T.border}`, borderRadius: 8, color: T.t1,
       fontFamily: T.fm, fontSize: 11, outline: 'none',
+      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
     };
 
     return (
@@ -1424,23 +1562,23 @@ export default function BodyTab({
         <div style={sectionLabel}>Before / After Comparison</div>
 
         {/* Slot toggle */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: 'rgba(0,0,0,0.3)', padding: 3, borderRadius: 6 }}>
+        <div style={{ display: 'flex', gap: 3, marginBottom: 14, background: 'rgba(0,0,0,0.3)', padding: 3, borderRadius: 8, border: `1px solid ${T.border}` }}>
           {['front', 'side', 'back', 'flex'].map(s => (
             <button key={s} onClick={() => setCompareSlot(s)}
-              style={{ flex: 1, padding: '6px 0', background: compareSlot === s ? 'rgba(201,168,76,0.15)' : 'transparent', border: 'none', color: compareSlot === s ? T.gold : T.t3, fontFamily: T.fm, fontSize: 10, borderRadius: 4, cursor: 'pointer', textTransform: 'capitalize' }}>
+              style={{ flex: 1, padding: '7px 0', background: compareSlot === s ? T.goldS : 'transparent', border: 'none', color: compareSlot === s ? T.gold : T.t3, fontFamily: T.fm, fontSize: 10, borderRadius: 6, cursor: 'pointer', textTransform: 'capitalize', fontWeight: compareSlot === s ? 600 : 400, transition: 'all .15s ease' }}>
               {s}
             </button>
           ))}
         </div>
 
         {/* Side by side photos */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <div style={{ flex: 1 }}>
             <select value={compareA || ''} onChange={e => setCompareA(e.target.value)} style={selectStyle}>
-              <option value="">Select before...</option>
+              <option value="">Before...</option>
               {withPhotos.map(c => <option key={c.id} value={c.id}>Day {c.day} - {c.date}</option>)}
             </select>
-            <div style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', border: `1px solid ${T.border}`, background: 'rgba(0,0,0,0.3)', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ marginTop: 8, borderRadius: 10, overflow: 'hidden', border: `1px solid ${T.border}`, background: 'rgba(0,0,0,0.35)', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
               {loadingPhotos ? (
                 <div style={{ animation: 'spin 2s linear infinite' }}><Enso size={24} /></div>
               ) : photoA ? (
@@ -1448,18 +1586,18 @@ export default function BodyTab({
               ) : ciA?.thumbFront && compareSlot === 'front' ? (
                 <img src={'data:image/jpeg;base64,' + ciA.thumbFront} alt="Before (thumb)" style={{ width: '100%', objectFit: 'contain', opacity: 0.7 }} />
               ) : (
-                <span style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>{compareA ? 'No ' + compareSlot + ' photo' : 'Select a date'}</span>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{compareA ? 'No ' + compareSlot : 'Select date'}</span>
               )}
             </div>
-            {ciA && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 4, textAlign: 'center' }}>{ciA.weight} lbs {'\u00B7'} {ciA.waist}"</div>}
+            {ciA && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textAlign: 'center' }}>{ciA.weight}<span style={{ fontSize: 8 }}> lbs</span> {'\u00B7'} {ciA.waist}<span style={{ fontSize: 8 }}>"</span></div>}
           </div>
 
           <div style={{ flex: 1 }}>
             <select value={compareB || ''} onChange={e => setCompareB(e.target.value)} style={selectStyle}>
-              <option value="">Select after...</option>
+              <option value="">After...</option>
               {withPhotos.map(c => <option key={c.id} value={c.id}>Day {c.day} - {c.date}</option>)}
             </select>
-            <div style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', border: `1px solid ${T.border}`, background: 'rgba(0,0,0,0.3)', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ marginTop: 8, borderRadius: 10, overflow: 'hidden', border: `1px solid ${T.border}`, background: 'rgba(0,0,0,0.35)', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
               {loadingPhotos ? (
                 <div style={{ animation: 'spin 2s linear infinite' }}><Enso size={24} /></div>
               ) : photoB ? (
@@ -1467,39 +1605,28 @@ export default function BodyTab({
               ) : ciB?.thumbFront && compareSlot === 'front' ? (
                 <img src={'data:image/jpeg;base64,' + ciB.thumbFront} alt="After (thumb)" style={{ width: '100%', objectFit: 'contain', opacity: 0.7 }} />
               ) : (
-                <span style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>{compareB ? 'No ' + compareSlot + ' photo' : 'Select a date'}</span>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{compareB ? 'No ' + compareSlot : 'Select date'}</span>
               )}
             </div>
-            {ciB && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 4, textAlign: 'center' }}>{ciB.weight} lbs {'\u00B7'} {ciB.waist}"</div>}
+            {ciB && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textAlign: 'center' }}>{ciB.weight}<span style={{ fontSize: 8 }}> lbs</span> {'\u00B7'} {ciB.waist}<span style={{ fontSize: 8 }}>"</span></div>}
           </div>
         </div>
 
         {/* Delta stats */}
         {delta && (
-          <div style={{ ...goldCard, padding: '12px 14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: parseFloat(delta.weight) <= 0 ? T.teal : T.amber, fontFamily: T.fm }}>
-                  {parseFloat(delta.weight) > 0 ? '+' : ''}{delta.weight}
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 10px', boxShadow: '0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4, textAlign: 'center' }}>
+              {[
+                [parseFloat(delta.weight) > 0 ? '+' + delta.weight : delta.weight, 'lbs', parseFloat(delta.weight) <= 0 ? T.teal : T.amber],
+                [parseFloat(delta.waist) > 0 ? '+' + delta.waist : delta.waist, 'waist', parseFloat(delta.waist) <= 0 ? T.teal : T.amber],
+                [parseFloat(delta.score) > 0 ? '+' + delta.score : delta.score, 'score', parseFloat(delta.score) >= 0 ? T.teal : T.amber],
+                [delta.days, 'days', T.t1],
+              ].map(([val, label, color], i) => (
+                <div key={i} style={{ padding: '6px 0' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color, fontFamily: T.fm, lineHeight: 1 }}>{val}</div>
+                  <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 4 }}>{label}</div>
                 </div>
-                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 2 }}>lbs</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: parseFloat(delta.waist) <= 0 ? T.teal : T.amber, fontFamily: T.fm }}>
-                  {parseFloat(delta.waist) > 0 ? '+' : ''}{delta.waist}
-                </div>
-                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 2 }}>waist</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: parseFloat(delta.score) >= 0 ? T.teal : T.amber, fontFamily: T.fm }}>
-                  {parseFloat(delta.score) > 0 ? '+' : ''}{delta.score}
-                </div>
-                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 2 }}>score</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{delta.days}</div>
-                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 2 }}>days</div>
-              </div>
+              ))}
             </div>
           </div>
         )}
@@ -1522,15 +1649,16 @@ export default function BodyTab({
       }}>
         <button onClick={() => setLightboxPhotos(null)} style={{
           position: 'absolute', top: 16, right: 16,
-          width: 32, height: 32, borderRadius: 16,
-          background: 'rgba(255,255,255,0.1)', border: 'none',
+          width: 36, height: 36, borderRadius: 18,
+          background: 'rgba(255,255,255,0.08)', border: `1px solid rgba(255,255,255,0.1)`,
           color: T.t1, fontSize: 16, cursor: 'pointer',
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         }}>{'\u2715'}</button>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', maxWidth: '100%', padding: '8px 0' }} onClick={e => e.stopPropagation()}>
           {slots.map(slot => (
             <div key={slot} style={{ flexShrink: 0 }}>
               <img src={'data:image/jpeg;base64,' + lightboxPhotos[slot]} alt={slot}
-                style={{ maxHeight: 'calc(100vh - 120px)', maxWidth: '90vw', borderRadius: 8, objectFit: 'contain' }} />
+                style={{ maxHeight: 'calc(100vh - 120px)', maxWidth: '90vw', borderRadius: 10, objectFit: 'contain', boxShadow: '0 4px 24px rgba(0,0,0,0.6)' }} />
               <div style={{ textAlign: 'center', fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textTransform: 'capitalize' }}>{slot}</div>
             </div>
           ))}
@@ -1545,15 +1673,15 @@ export default function BodyTab({
 
   return (
     <div>
-      <header style={{ ...S.header, marginBottom: 14 }}>
+      <header style={{ ...S.header, marginBottom: 12 }}>
         <h1 style={{ ...S.brand, fontSize: 20 }}>BODY</h1>
         <p style={S.sub}>Composition Analysis</p>
       </header>
 
       {renderSegments()}
 
-      {activeView === 'Timeline' && renderTimeline()}
-      {activeView === 'Check-in' && renderCheckin()}
+      {activeView === 'Log' && renderTimeline()}
+      {activeView === 'Check' && renderCheckin()}
       {activeView === 'Insights' && renderInsights()}
       {activeView === 'Compare' && renderCompare()}
       {activeView === 'Scan' && (isPro

@@ -37,6 +37,8 @@ export const usableDoses = (c) => {
 export const SITE_LIST = [
   { id: "abdomen_left", label: "Abdomen L", region: "abdomen" },
   { id: "abdomen_right", label: "Abdomen R", region: "abdomen" },
+  { id: "upper_abdomen_left", label: "Upper Abdomen L", region: "abdomen" },
+  { id: "upper_abdomen_right", label: "Upper Abdomen R", region: "abdomen" },
   { id: "thigh_left", label: "Thigh L", region: "thigh" },
   { id: "thigh_right", label: "Thigh R", region: "thigh" },
   { id: "delt_left", label: "Delt L", region: "delt" },
@@ -45,6 +47,10 @@ export const SITE_LIST = [
   { id: "glute_right", label: "Glute R", region: "glute" },
   { id: "love_handle_left", label: "Love Handle L", region: "love_handle" },
   { id: "love_handle_right", label: "Love Handle R", region: "love_handle" },
+  { id: "lat_left", label: "Lat L", region: "lat" },
+  { id: "lat_right", label: "Lat R", region: "lat" },
+  { id: "calf_left", label: "Calf L", region: "calf" },
+  { id: "calf_right", label: "Calf R", region: "calf" },
 ];
 
 export const suggestNextSite = (siteHistory) => {

@@ -58,6 +58,8 @@ Required JSON schema:
 Rating scale for regions: "very lean" (<12%), "lean" (12-17%), "moderate" (17-23%), "elevated" (23-28%), "high" (>28%).
 
 Critical rules:
+- Assess ONLY what is visible in the photo(s). Do not let protocol duration, compound names, or any non-visual context bias your estimates.
+- The same photo must produce the same results regardless of whether it is day 1 or day 100 of a protocol.
 - Use the subject's weight to calculate realistic lean/fat mass splits. Total lean + fat must approximately equal body weight.
 - Regional lean mass must sum approximately to total lean mass.
 - Be precise — narrow estimates, not wide ranges. This simulates clinical equipment.
@@ -65,7 +67,8 @@ Critical rules:
 - Visceral fat area: <100 cm² normal, 100-160 elevated, >160 high.
 - Metabolic age: estimate based on composition relative to population norms.
 - If only front photo available, estimate back/posterior regions with lower confidence.
-- Symmetry score: 10 = perfect bilateral symmetry, assess arm and leg balance.`;
+- Symmetry score: 10 = perfect bilateral symmetry, assess arm and leg balance.
+- Be honest and consistent. Never inflate or deflate estimates based on expected timeline or protocol. A clinician reports what the scan shows, period.`;
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BODY MAP SVG — Stylized anatomical silhouette with fillable regions
@@ -355,7 +358,7 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
           role: 'user',
           content: [
             ...imageBlocks,
-            { type: 'text', text: `Body scan request.\nWeight: ${checkin.weight} lbs. Waist: ${checkin.waist}". Day ${checkin.day || '?'}.\nPhotos available: ${photoLabels.join(', ')} (${photoLabels.length}).\nBio sex: ${profile?.biologicalSex || 'male'}. Age: ${profile?.age || '30'}. Height: ${profile?.height || 'unknown'}.\nActive protocol: ${(stack || []).length > 0 ? stack.map(s => s.name).join(', ') : 'none'}.\n${prevContext}` },
+            { type: 'text', text: `Body scan request.\nWeight: ${checkin.weight} lbs. Waist: ${checkin.waist}".\nPhotos available: ${photoLabels.join(', ')} (${photoLabels.length}).\nBio sex: ${profile?.biologicalSex || 'male'}. Age: ${profile?.age || '30'}. Height: ${profile?.height ? (profile.height.feet + "'" + profile.height.inches + '"') : 'unknown'}.\n${prevContext}` },
           ],
         }],
       };

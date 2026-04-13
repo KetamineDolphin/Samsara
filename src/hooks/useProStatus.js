@@ -92,7 +92,8 @@ export function useProStatus(profile, setProfile) {
     check();
   }, []);
 
-  const isPro = profile?.tier === 'pro';
+  // On web (non-native), all features are free — pro gate only applies on iOS
+  const isPro = !Capacitor.isNativePlatform() || profile?.tier === 'pro';
 
   const purchase = useCallback(async (planKey) => {
     const productId = PRODUCT_IDS[planKey];
@@ -130,7 +131,7 @@ export const FREE_LIMITS = {
   aiAnalysesPerMonth: 1, // 1 AI analysis
   dexaScans: 0,          // No DEXA scans
   labScans: 0,           // No lab scans
-  cloudSync: false,      // No cloud sync
+  cloudSync: true,       // Cloud sync available to all users
   weeklyCoaching: false,  // No weekly AI summary
   exportData: false,     // No data export
 };
@@ -142,7 +143,7 @@ export function canUseFeature(feature, profile, counts = {}) {
     case 'aiAnalysis': return (counts.aiAnalyses || 0) < FREE_LIMITS.aiAnalysesPerMonth;
     case 'dexaScan': return false;
     case 'labScan': return false;
-    case 'cloudSync': return false;
+    case 'cloudSync': return true;
     case 'weeklyCoaching': return false;
     case 'exportData': return false;
     default: return true; // calc, logging, streaks are always free

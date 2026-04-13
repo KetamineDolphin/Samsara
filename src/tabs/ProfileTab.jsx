@@ -826,79 +826,97 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
   return (
     <div style={{ animation: 'fadeUp .5s ease both' }}>
-      <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>PROFILE</h1><p style={S.sub}>Stack & Settings</p></header>
-      <div style={S.segWrap}>{[{ k: 'stack', l: 'My Stack' }, { k: 'library', l: 'Library' }, { k: 'cost', l: 'Cost' }, { k: 'settings', l: 'Settings' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
+      <header style={{ ...S.header, marginBottom: 16 }}><h1 style={{ ...S.brand, fontSize: 20 }}>PROFILE</h1><p style={S.sub}>Stack & Settings</p></header>
+      <div style={{ ...S.segWrap, marginBottom: 4 }}>{[{ k: 'stack', l: 'My Stack' }, { k: 'library', l: 'Library' }, { k: 'cost', l: 'Cost' }, { k: 'settings', l: 'Settings' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}), transition: 'all .2s' }}>{s.l}</button>)}</div>
 
       {sv === 'stack' && <div>
         {profile && (
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ ...S.card, padding: '20px 16px', marginBottom: 20, borderColor: T.goldM, background: 'linear-gradient(135deg, rgba(201,168,76,0.04) 0%, rgba(0,0,0,0) 60%)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
               <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: T.goldS, border: '1px solid ' + T.goldM,
+                width: 52, height: 52, borderRadius: '50%',
+                background: `linear-gradient(135deg, ${T.goldS}, rgba(201,168,76,0.18))`,
+                border: '1.5px solid ' + T.goldM,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 20, color: T.gold, fontFamily: T.fd, fontWeight: 600,
+                fontSize: 22, color: T.gold, fontFamily: T.fd, fontWeight: 600,
+                boxShadow: '0 0 20px rgba(201,168,76,0.08)',
               }}>
                 {profile.name ? profile.name.charAt(0).toUpperCase() : '\u25CB'}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>
-                  {profile.name || 'Samsara User'}{isPro && <ProBadge />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 18, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{profile.name || 'Samsara User'}</span>
+                  {isPro && <ProBadge />}
                 </div>
-                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>
-                  Day {daysSinceStart} {'\u00B7'} {profile.primaryGoal ? profile.primaryGoal.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Protocol Active'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, background: T.goldS, padding: '2px 8px', borderRadius: 10, letterSpacing: 0.5 }}>Day {daysSinceStart}</span>
+                  <span style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>{profile.primaryGoal ? profile.primaryGoal.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Protocol Active'}</span>
                 </div>
               </div>
               <button onClick={() => setEditProfileModal(true)} style={{
-                background: 'none', border: '1px solid ' + T.border, borderRadius: 8,
+                background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8,
                 padding: '6px 12px', fontSize: 10, color: T.t3, cursor: 'pointer',
-                fontFamily: T.fm, letterSpacing: 0.5,
+                fontFamily: T.fm, letterSpacing: 0.5, transition: 'all .2s',
               }}>Edit</button>
             </div>
 
-            {!isPro && (
-              <button onClick={onUpgrade} style={{
-                ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center',
-                fontSize: 12, fontWeight: 600, marginBottom: 12, letterSpacing: 0.5,
-              }}>Upgrade to Pro</button>
+            {(profile.targetWeight || profile.targetWaist || profile.targetBodyFat) && (
+              <div style={{ padding: '14px 0 0', borderTop: '1px solid ' + T.border }}>
+                {profile.targetWeight && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Weight</span>
+                      <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{profile.currentWeight} {'\u2192'} {profile.targetWeight} {profile.unitSystem === 'metric' ? 'kg' : 'lbs'}</span>
+                    </div>
+                    <div style={S.barTrack}>
+                      <div style={{ ...S.barFill, width: (() => { const latest = checkins.length ? checkins[checkins.length - 1].weight : profile.currentWeight; const start = profile.currentWeight; const target = profile.targetWeight; if (!start || !target || start === target) return '0%'; return Math.max(0, Math.min(100, Math.round(Math.abs(start - latest) / Math.abs(start - target) * 100))) + '%'; })(), background: 'linear-gradient(90deg, ' + T.gold + ', ' + T.amber + ')' }} />
+                    </div>
+                  </div>
+                )}
+                {profile.targetWaist && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Waist</span>
+                      <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{profile.currentWaist} {'\u2192'} {profile.targetWaist} {profile.unitSystem === 'metric' ? 'cm' : 'in'}</span>
+                    </div>
+                    <div style={S.barTrack}>
+                      <div style={{ ...S.barFill, width: (() => { const latest = checkins.length ? checkins[checkins.length - 1].waist : profile.currentWaist; const start = profile.currentWaist; const target = profile.targetWaist; if (!start || !target || start === target) return '0%'; return Math.max(0, Math.min(100, Math.round(Math.abs(start - latest) / Math.abs(start - target) * 100))) + '%'; })(), background: 'linear-gradient(90deg, rgba(0,210,180,0.8), rgba(0,210,180,0.4))' }} />
+                    </div>
+                  </div>
+                )}
+                {profile.targetBodyFat && (
+                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>Target BF: {profile.targetBodyFat}%</div>
+                )}
+              </div>
             )}
 
-            {profile.targetWeight && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Weight</span>
-                  <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{profile.currentWeight} {'\u2192'} {profile.targetWeight} {profile.unitSystem === 'metric' ? 'kg' : 'lbs'}</span>
-                </div>
-                <div style={S.barTrack}>
-                  <div style={{ ...S.barFill, width: (() => { const latest = checkins.length ? checkins[checkins.length - 1].weight : profile.currentWeight; const start = profile.currentWeight; const target = profile.targetWeight; if (!start || !target || start === target) return '0%'; return Math.max(0, Math.min(100, Math.round(Math.abs(start - latest) / Math.abs(start - target) * 100))) + '%'; })(), background: 'linear-gradient(90deg, ' + T.gold + ', ' + T.amber + ')' }} />
-                </div>
-              </div>
-            )}
-            {profile.targetWaist && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Waist</span>
-                  <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{profile.currentWaist} {'\u2192'} {profile.targetWaist} {profile.unitSystem === 'metric' ? 'cm' : 'in'}</span>
-                </div>
-                <div style={S.barTrack}>
-                  <div style={{ ...S.barFill, width: (() => { const latest = checkins.length ? checkins[checkins.length - 1].waist : profile.currentWaist; const start = profile.currentWaist; const target = profile.targetWaist; if (!start || !target || start === target) return '0%'; return Math.max(0, Math.min(100, Math.round(Math.abs(start - latest) / Math.abs(start - target) * 100))) + '%'; })(), background: 'linear-gradient(90deg, rgba(0,210,180,0.8), rgba(0,210,180,0.4))' }} />
-                </div>
-              </div>
-            )}
-            {profile.targetBodyFat && (
-              <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>Target BF: {profile.targetBodyFat}%</div>
+            {!isPro && (
+              <button onClick={onUpgrade} style={{
+                width: '100%', padding: '10px', textAlign: 'center',
+                fontSize: 11, fontWeight: 600, marginTop: 14, letterSpacing: 1,
+                background: 'linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.04))',
+                border: '1px solid ' + T.goldM, borderRadius: 10, color: T.gold,
+                cursor: 'pointer', fontFamily: T.fm, transition: 'all .2s',
+              }}>Upgrade to Pro</button>
             )}
           </div>
         )}
 
-        <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Active {'\u00B7'} {stack.length} Compounds</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Active Compounds</div>
+          <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>{stack.length}</span>
+        </div>
         {stack.map(c => { const cc = CAT_C[LIB.find(l => l.id === c.libId)?.category] || T.gold;
           return (
-            <div key={c.id} style={{ ...S.card, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 4, height: 32, borderRadius: 2, background: cc, opacity: 0.6 }} />
-              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{c.name}</div><div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{fmtDose(c)} {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}</div></div>
-              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', color: T.t3, fontSize: 16, cursor: 'pointer', padding: 4 }}>{'\u270E'}</button>
-              <button onClick={() => removeFromStack(c.id)} style={{ background: 'none', border: 'none', color: 'rgba(220,80,80,0.5)', fontSize: 14, cursor: 'pointer', padding: 4 }}>{'\u2715'}</button>
+            <div key={c.id} style={{ ...S.card, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${cc}`, transition: 'all .2s' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 3 }}>
+                  {fmtDose(c)} {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}
+                </div>
+              </div>
+              <button onClick={() => openEdit(c)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 6, color: T.t3, fontSize: 13, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u270E'}</button>
+              <button onClick={() => removeFromStack(c.id)} style={{ background: 'none', border: '1px solid rgba(220,80,80,0.15)', borderRadius: 6, color: 'rgba(220,80,80,0.45)', fontSize: 12, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u2715'}</button>
             </div>
           );
         })}
@@ -1005,7 +1023,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
         <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${T.goldM}, transparent)`, margin: '20px 0' }} />
 
         <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 12 }}>Weekly Injection Load</div>
-        <div style={{ ...S.card, padding: '16px' }}>
+        <div style={{ ...S.card, padding: '18px 16px' }}>
           <WeeklyLoadBars stack={stack} />
         </div>
       </div>}
@@ -1311,13 +1329,17 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
       {sv === 'library' && <div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-          <input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="" style={{ ...S.input, flex: 1, fontSize: 14, padding: '11px 14px', background: 'rgba(0,0,0,0.3)', color: T.t1 }} />
+          <div style={{ position: 'relative', flex: 1 }}>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: T.t3, pointerEvents: 'none' }}>{'\u2315'}</span>
+            <input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="Search compounds..." style={{ ...S.input, width: '100%', fontSize: 14, padding: '11px 14px 11px 34px', background: 'rgba(0,0,0,0.3)', color: T.t1, borderRadius: 12 }} />
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            <button onClick={() => setLibZoom(z => Math.max(z - 1, -2))} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 14, color: libZoom <= -2 ? T.border : T.t2, cursor: libZoom <= -2 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>A-</button>
-            <button onClick={() => setLibZoom(z => Math.min(z + 1, 4))} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 14, color: libZoom >= 4 ? T.border : T.t2, cursor: libZoom >= 4 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>A+</button>
+            <button onClick={() => setLibZoom(z => Math.max(z - 1, -2))} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 13, color: libZoom <= -2 ? T.border : T.t2, cursor: libZoom <= -2 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>A-</button>
+            <button onClick={() => setLibZoom(z => Math.min(z + 1, 4))} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 13, color: libZoom >= 4 ? T.border : T.t2, cursor: libZoom >= 4 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>A+</button>
           </div>
         </div>
-        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12 + libZoom, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
+        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4, gap: 6 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12 + libZoom, borderRadius: 10, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
+        <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>{filtered.length} compound{filtered.length !== 1 ? 's' : ''}{cat !== 'All' ? ` in ${cat}` : ''}</div>
         {filtered.map(p => { const cc = CAT_C[p.category] || T.gold; const added = inStack.has(p.id); const z = libZoom;
           const insights = stack.length > 0 ? getCompoundInsights(p.id, stack, LIB) : [];
           const hasSynergy = insights.some(r => r.type === 'synergy');
@@ -1327,9 +1349,15 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           const timelineKeys = p.timeline ? Object.keys(p.timeline) : [];
           return (
             <div key={p.id} ref={el => { if (el) libCardRefs.current[p.id] = el; }} style={{ marginBottom: 6 }}>
-              <div onClick={() => setExpandedLibId(isExpanded ? null : p.id)} style={{ ...S.card, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderBottomLeftRadius: isExpanded ? 0 : undefined, borderBottomRightRadius: isExpanded ? 0 : undefined }}>
-                <div style={{ width: 3, height: 24, borderRadius: 2, background: cc, opacity: 0.6 }} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 15 + z, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>{dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}</div><div style={{ fontSize: 12 + z, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div></div>
+              <div onClick={() => setExpandedLibId(isExpanded ? null : p.id)} style={{ ...S.card, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderLeft: `3px solid ${cc}`, borderBottomLeftRadius: isExpanded ? 0 : undefined, borderBottomRightRadius: isExpanded ? 0 : undefined, transition: 'all .2s' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 15 + z, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{p.name}</span>
+                    {added && <span style={{ fontSize: 8, color: T.gold, fontFamily: T.fm, background: T.goldS, padding: '1px 6px', borderRadius: 6, letterSpacing: 0.5 }}>IN STACK</span>}
+                    {dotColor && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}
+                  </div>
+                  <div style={{ fontSize: 12 + z, color: T.t3, fontFamily: T.fm, marginTop: 3 }}>{p.defaultDose} {p.defaultUnit} {'\u00B7'} {p.category}</div>
+                </div>
                 <span style={{ fontSize: 14, color: T.t3, transition: 'transform .3s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>{'\u25BE'}</span>
               </div>
               <div style={{ maxHeight: isExpanded ? 3000 : 0, overflow: 'hidden', transition: 'max-height .4s ease' }}>
@@ -1423,8 +1451,11 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
       {sv === 'settings' && <div>
         {/* Notifications */}
-        <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Notifications</div>
+        <div style={{ ...S.card, padding: '16px 16px 14px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 14, opacity: 0.5 }}>{'\uD83D\uDD14'}</span>
+            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Notifications</div>
+          </div>
           {notifPerm === 'unsupported' && (
             <div style={{ background: T.warn, borderRadius: 8, padding: '10px 12px' }}>
               <div style={{ fontSize: 11, color: T.warnT, fontFamily: T.fm, lineHeight: 1.5 }}>Push notifications not supported in this browser. Add Samsara to your home screen in Safari to enable.</div>
@@ -1451,16 +1482,17 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                 { key: 'vialExpiryEnabled', label: 'Vial Expiry Warnings', desc: 'Alert 3 days before vial expires' },
                 { key: 'streakEnabled', label: 'Streak Protection', desc: 'Alert at 8pm if not fully logged' },
                 { key: 'sundaySummaryEnabled', label: 'Sunday Review Prompt', desc: 'Weekly summary reminder Sundays 9am' },
-              ].map(tog => {
+              ].map((tog, idx, arr) => {
                 const on = settings?.[tog.key] !== false;
+                const isLast = idx === arr.length - 1;
                 return (
-                  <div key={tog.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid ' + T.border }}>
+                  <div key={tog.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: isLast ? 'none' : '1px solid ' + T.border }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: T.t1, fontFamily: T.fm, fontWeight: 500 }}>{tog.label}</div>
-                      <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 1 }}>{tog.desc}</div>
+                      <div style={{ fontSize: 13, color: T.t1, fontFamily: T.fm, fontWeight: 500 }}>{tog.label}</div>
+                      <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 2, lineHeight: 1.4 }}>{tog.desc}</div>
                     </div>
-                    <button onClick={() => setSettings(p => ({ ...p, [tog.key]: !on }))} style={{ width: 48, height: 26, borderRadius: 13, background: on ? T.goldS : 'rgba(255,255,255,0.06)', border: on ? '1px solid ' + T.goldM : '1px solid ' + T.border, cursor: 'pointer', position: 'relative', flexShrink: 0, padding: 0, transition: 'all .2s ease' }}>
-                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: on ? T.gold : T.t3, position: 'absolute', top: 2, left: 0, transform: on ? 'translateX(24px)' : 'translateX(2px)', transition: 'all .2s ease' }} />
+                    <button onClick={() => setSettings(p => ({ ...p, [tog.key]: !on }))} style={{ width: 48, height: 26, borderRadius: 13, background: on ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)', border: on ? '1px solid ' + T.goldM : '1px solid ' + T.border, cursor: 'pointer', position: 'relative', flexShrink: 0, padding: 0, transition: 'all .25s ease', marginLeft: 12 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: on ? T.gold : T.t3, position: 'absolute', top: 2, left: 0, transform: on ? 'translateX(24px)' : 'translateX(2px)', transition: 'all .25s ease', boxShadow: on ? '0 0 8px rgba(201,168,76,0.3)' : 'none' }} />
                     </button>
                   </div>
                 );
@@ -1481,23 +1513,30 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           )}
         </div>
 
-        <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Profile</div>
-          <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginBottom: 12 }}>
-            Started: {profile?.startDate || 'Not set'} {'\u00B7'} Day {daysSinceStart}
+        <div style={{ ...S.card, padding: '16px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 14, opacity: 0.5 }}>{'\u2699'}</span>
+            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Profile</div>
           </div>
-          <button onClick={() => { if (window.confirm('Reset your profile? You will go through onboarding again.')) { setProfile(null); } }} style={{ ...S.newVialBtn, color: 'rgba(220,80,80,0.6)', borderColor: 'rgba(220,80,80,0.2)' }}>Reset Profile</button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid ' + T.border }}>
+            <span style={{ fontSize: 12, color: T.t2, fontFamily: T.fm }}>Protocol Start</span>
+            <span style={{ fontSize: 12, color: T.t1, fontFamily: T.fm, fontWeight: 500 }}>{profile?.startDate || 'Not set'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: T.t2, fontFamily: T.fm }}>Day Count</span>
+            <span style={{ fontSize: 12, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>{daysSinceStart}</span>
+          </div>
+          <button onClick={() => { if (window.confirm('Reset your profile? You will go through onboarding again.')) { setProfile(null); } }} style={{ ...S.newVialBtn, color: 'rgba(220,80,80,0.5)', borderColor: 'rgba(220,80,80,0.15)', fontSize: 11, padding: '8px 14px' }}>Reset Profile</button>
         </div>
 
-        {isPro ? <CloudSync /> : (
-          <ProLock onUpgrade={onUpgrade} label="Cloud Sync">
-            <CloudSync />
-          </ProLock>
-        )}
+        <CloudSync />
 
         {isPro ? (
-        <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Data Management</div>
+        <div style={{ ...S.card, padding: '16px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 14, opacity: 0.5 }}>{'\uD83D\uDCBE'}</span>
+            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Data Management</div>
+          </div>
           {/* Storage health bar */}
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
@@ -1564,9 +1603,10 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           <AboutDisclaimer />
         </div>
 
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 2 }}>SAMSARA v4.0</div>
-          <div style={{ fontSize: 9, color: T.t4, fontFamily: T.fm, marginTop: 4 }}>Eastern philosophy meets biohacking precision</div>
+        <div style={{ textAlign: 'center', padding: '28px 0 16px' }}>
+          <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${T.goldM}, transparent)`, marginBottom: 20, maxWidth: 120, margin: '0 auto 20px' }} />
+          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, letterSpacing: 3, fontWeight: 500 }}>SAMSARA v4.0</div>
+          <div style={{ fontSize: 9, color: T.t4, fontFamily: T.fd, marginTop: 6, letterSpacing: 1, fontStyle: 'italic' }}>Eastern philosophy meets biohacking precision</div>
         </div>
       </div>}
 

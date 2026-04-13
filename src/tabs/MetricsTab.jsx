@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { Chart, registerables } from "chart.js";
 import T from '../utils/tokens';
 import S from '../utils/styles';
-import { getToday, parseBF, makeId } from '../utils/helpers';
+import { getToday, getNow, parseBF, makeId } from '../utils/helpers';
+import { logSubjective } from '../data/analytics';
 import { SamsaraSymbol, Enso } from '../components/Shared';
 import { parseLabText, extractLabDate, countParsedMarkers } from '../utils/labParser';
 import { ProLock, ProBadge } from '../components/ProGate';
@@ -333,12 +334,12 @@ function compressImage(file) {
 
 function ChartCard({ title, rightLabel, subtitle, children, height = 180 }) {
   return (
-    <div style={{ ...S.card, padding: "14px 14px", marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: subtitle ? 4 : 10 }}>
-        <span style={{ fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: T.t3, fontFamily: T.fm }}>{title}</span>
-        {rightLabel && <span style={{ fontSize: 12, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>{rightLabel}</span>}
+    <div style={{ ...S.card, padding: "14px 14px", marginBottom: 13, border: `1px solid ${T.border}`, borderRadius: 13 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: subtitle ? 4 : 10 }}>
+        <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: "uppercase", color: T.t3, fontFamily: T.fm }}>{title}</span>
+        {rightLabel && <span style={{ fontSize: 12, color: T.gold, fontFamily: T.fm, fontWeight: 600, letterSpacing: 0.5 }}>{rightLabel}</span>}
       </div>
-      {subtitle && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 8, letterSpacing: 0.5 }}>{subtitle}</div>}
       <div style={{ height }}>{children}</div>
     </div>
   );
@@ -450,10 +451,133 @@ function SubjectiveLineChart({ data, color, label, height = 160 }) {
 }
 
 // ============================================================================
+// SUBJECTIVE LOG FORM
+// ============================================================================
+
+function SubjectiveLogForm({ metrics, loggedToday, subjective, todayStr, onSubmit }) {
+  const [values, setValues] = useState({});
+  const [submitted, setSubmitted] = useState(loggedToday);
+
+  // Reset when day changes
+  useEffect(() => { setSubmitted(loggedToday); }, [loggedToday]);
+
+  if (submitted) {
+    const todayEntry = Array.isArray(subjective) ? subjective.find(s => s.date === todayStr) : null;
+    return (
+      <div style={{ ...S.card, padding: '12px 14px', borderColor: 'rgba(92,184,112,0.15)', background: 'rgba(92,184,112,0.03)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#5cb870', fontSize: 16 }}>{'\u2713'}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#5cb870', fontFamily: T.fb }}>Logged today</span>
+          </div>
+          {todayEntry && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              {metrics.map(m => (
+                <span key={m.key} style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>
+                  {m.emoji} {todayEntry[m.key] || '-'}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const handleSubmit = () => {
+    const entry = {};
+    metrics.forEach(m => { entry[m.key] = values[m.key] || 5; });
+    onSubmit(entry);
+    setSubmitted(true);
+    if (navigator.vibrate) navigator.vibrate(40);
+  };
+
+  return (
+    <div style={{ ...S.card, padding: '14px', borderColor: T.goldM + '40' }}>
+      <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 12 }}>How are you feeling today?</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {metrics.map(m => {
+          const val = values[m.key] || 5;
+          return (
+            <div key={m.key} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px', border: '1px solid ' + T.border }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 500, color: T.t2, fontFamily: T.fm }}>{m.emoji} {m.label}</span>
+                <span style={{ fontSize: 16, fontWeight: 700, color: m.color, fontFamily: T.fm, minWidth: 20, textAlign: 'right' }}>{val}</span>
+              </div>
+              <input
+                type="range" min="1" max="10" step="1" value={val}
+                onChange={e => setValues(p => ({ ...p, [m.key]: parseInt(e.target.value) }))}
+                style={{
+                  width: '100%', height: 4, appearance: 'none', WebkitAppearance: 'none',
+                  background: `linear-gradient(to right, ${m.color} ${(val - 1) / 9 * 100}%, rgba(255,255,255,0.06) ${(val - 1) / 9 * 100}%)`,
+                  borderRadius: 2, outline: 'none', cursor: 'pointer',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>Low</span>
+                <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>High</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={handleSubmit} style={{ ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center', marginTop: 12, fontSize: 12, fontWeight: 600 }}>
+        Log Today's Check-in
+      </button>
+    </div>
+  );
+}
+
+const SUB_METRICS = [
+  { key: 'energy', label: 'Energy', emoji: '\u26A1', color: T.teal },
+  { key: 'focus', label: 'Focus', emoji: '\uD83C\uDFAF', color: T.purple || 'rgba(160,120,220,0.8)' },
+  { key: 'hunger', label: 'Hunger', emoji: '\uD83C\uDF7D', color: 'rgba(230,184,79,0.8)' },
+  { key: 'mood', label: 'Mood', emoji: '\u2728', color: T.gold },
+];
+
+function SubjectiveSection({ subjective, setSubjective, getSubjectiveChartData }) {
+  const todayStr = getToday();
+  const loggedToday = Array.isArray(subjective) && subjective.some(s => s.date === todayStr);
+  const subChartData = getSubjectiveChartData ? getSubjectiveChartData(subjective || [], 30) : { labels: [], energy: [], focus: [], hunger: [], mood: [] };
+  const hasSubData = subChartData.labels.length >= 2;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8 }}>
+        <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, transparent, ${T.goldM})` }} />
+        <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>SUBJECTIVE</span>
+        <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, ${T.goldM}, transparent)` }} />
+      </div>
+      <SubjectiveLogForm
+        metrics={SUB_METRICS}
+        loggedToday={loggedToday}
+        subjective={subjective}
+        todayStr={todayStr}
+        onSubmit={(entry) => {
+          if (setSubjective) {
+            const updated = logSubjective(subjective, { ...entry, date: todayStr });
+            setSubjective(updated);
+          }
+        }}
+      />
+      {hasSubData && (
+        <div style={{ marginTop: 10 }}>
+          {SUB_METRICS.map(m => (
+            <ChartCard key={m.key} title={m.label} rightLabel={subChartData[m.key].length ? `${subChartData[m.key][subChartData[m.key].length - 1]}/10` : ''} height={140}>
+              <SubjectiveLineChart data={{ labels: subChartData.labels, values: subChartData[m.key] }} color={m.color} label={m.label} height={140} />
+            </ChartCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, isPro, onUpgrade }) {
+export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, setSubjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, isPro, onUpgrade }) {
   const checkins = rawCheckins || [];
   const results = labResults || [];
   const sex = profile?.biologicalSex || 'male';
@@ -490,7 +614,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     return () => clearInterval(iv);
   }, [analyzing]);
 
-  const segBar = <div style={S.segWrap}>{[{ k: 'charts', l: 'Charts' }, { k: 'trends', l: 'Trends' }, { k: 'insights', l: 'Insights' }, { k: 'labs', l: 'Labs' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>;
+  const segBar = <div style={{ ...S.segWrap, marginBottom: 16 }}>{[{ k: 'charts', l: 'Charts' }, { k: 'insights', l: 'Insights' }, { k: 'labs', l: 'Labs' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, fontSize: 12, padding: '7px 0', ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>;
 
   const normalizedLogs = (logs || []).map(l => l.compoundId ? l : { ...l, compoundId: l.cid });
 
@@ -619,40 +743,6 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     if (!res.success) setAnalysisError(res.error);
   };
 
-  // ── Trends view: Subjective tracking ──
-  if (sv === 'trends') {
-    const chartData = getSubjectiveChartData ? getSubjectiveChartData(subjective || [], 30) : { labels: [], energy: [], focus: [], hunger: [], mood: [] };
-    const hasData = chartData.labels.length >= 2;
-    const metrics = [
-      { key: 'energy', label: 'Energy', color: T.teal },
-      { key: 'focus', label: 'Focus', color: T.purple },
-      { key: 'hunger', label: 'Hunger', color: 'rgba(230,184,79,0.8)' },
-      { key: 'mood', label: 'Mood', color: T.gold },
-    ];
-
-    return (
-      <div style={{ animation: 'fadeUp .5s ease both' }}>
-        <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Subjective Tracking</p></header>
-        {segBar}
-        {!hasData ? (
-          <div style={{ textAlign: 'center', paddingTop: 50 }}>
-            <SamsaraSymbol size={48} />
-            <p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1 }}>The inner metrics await</p>
-            <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 8, lineHeight: 1.6 }}>Log energy, focus, hunger and mood{'\n'}in the Track tab to see trends emerge</p>
-          </div>
-        ) : (
-          <div>
-            {metrics.map(m => (
-              <ChartCard key={m.key} title={m.label} rightLabel={chartData[m.key].length ? `${chartData[m.key][chartData[m.key].length - 1]}/10` : ''} height={160}>
-                <SubjectiveLineChart data={{ labels: chartData.labels, values: chartData[m.key] }} color={m.color} label={m.label} height={160} />
-              </ChartCard>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   // ── Insights view: Adherence dashboard ──
   if (sv === 'insights') {
     const stats = getAdherenceStats ? getAdherenceStats(normalizedLogs, stack, 30) : { overallPct: 0, byCompound: [], currentStreak: 0, longestStreak: 0, bestDay: null, worstDay: null };
@@ -660,42 +750,42 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
     return (
       <div style={{ animation: 'fadeUp .5s ease both' }}>
-        <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Adherence Dashboard</p></header>
+        <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Adherence Dashboard</p></header>
         {segBar}
         {!hasCompounds ? (
-          <div style={{ textAlign: 'center', paddingTop: 50 }}>
-            <SamsaraSymbol size={48} />
-            <p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1 }}>Consistency reveals itself</p>
-            <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 8, lineHeight: 1.6 }}>Add compounds and log doses.{'\n'}Adherence patterns will appear here.</p>
+          <div style={{ textAlign: 'center', padding: '60px 20px 40px' }}>
+            <div style={{ width: 48, height: 48, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SamsaraSymbol size={24} /></div>
+            <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, lineHeight: 1.3 }}>Consistency reveals itself</p>
+            <p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 10, lineHeight: 1.6, letterSpacing: 0.5 }}>Add compounds and log doses.{'\n'}Adherence patterns will appear here.</p>
           </div>
         ) : (
           <div>
-            <div style={{ ...S.card, padding: 20, marginBottom: 10, textAlign: 'center' }}>
-              <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>OVERALL ADHERENCE (30D)</span>
-              <div style={{ fontSize: 48, fontWeight: 700, fontFamily: T.fm, color: stats.overallPct >= 80 ? T.teal : stats.overallPct >= 50 ? T.gold : T.red, marginTop: 8 }}>{stats.overallPct}%</div>
+            <div style={{ ...S.card, padding: 20, marginBottom: 13, textAlign: 'center' }}>
+              <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>OVERALL ADHERENCE (30D)</span>
+              <div style={{ fontSize: 48, fontWeight: 700, fontFamily: T.fm, color: stats.overallPct >= 80 ? T.teal : stats.overallPct >= 50 ? T.gold : T.red, marginTop: 8, lineHeight: 1 }}>{stats.overallPct}%</div>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 13 }}>
               <div style={{ ...S.card, flex: 1, padding: 14, textAlign: 'center' }}>
-                <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>CURRENT STREAK</span>
-                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.fm, color: T.t1, marginTop: 6 }}>{stats.currentStreak}<span style={{ fontSize: 12, color: T.t3 }}> days</span></div>
+                <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>CURRENT STREAK</span>
+                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.fm, color: T.t1, marginTop: 6, lineHeight: 1 }}>{stats.currentStreak}<span style={{ fontSize: 11, color: T.t3, fontWeight: 400 }}> days</span></div>
               </div>
               <div style={{ ...S.card, flex: 1, padding: 14, textAlign: 'center' }}>
-                <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>LONGEST STREAK</span>
-                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.fm, color: T.t1, marginTop: 6 }}>{stats.longestStreak}<span style={{ fontSize: 12, color: T.t3 }}> days</span></div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <div style={{ ...S.card, flex: 1, padding: 14, textAlign: 'center' }}>
-                <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>BEST DAY</span>
-                <div style={{ fontSize: 20, fontWeight: 600, fontFamily: T.fm, color: T.green, marginTop: 6 }}>{stats.bestDay || '--'}</div>
-              </div>
-              <div style={{ ...S.card, flex: 1, padding: 14, textAlign: 'center' }}>
-                <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>WORST DAY</span>
-                <div style={{ fontSize: 20, fontWeight: 600, fontFamily: T.fm, color: T.red, marginTop: 6 }}>{stats.worstDay || '--'}</div>
+                <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>LONGEST STREAK</span>
+                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.fm, color: T.t1, marginTop: 6, lineHeight: 1 }}>{stats.longestStreak}<span style={{ fontSize: 11, color: T.t3, fontWeight: 400 }}> days</span></div>
               </div>
             </div>
-            <div style={{ ...S.card, padding: 14, marginBottom: 10 }}>
-              <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, display: 'block', marginBottom: 12 }}>PER-COMPOUND</span>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 13 }}>
+              <div style={{ ...S.card, flex: 1, padding: 14, textAlign: 'center' }}>
+                <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>BEST DAY</span>
+                <div style={{ fontSize: 18, fontWeight: 600, fontFamily: T.fm, color: T.green, marginTop: 6 }}>{stats.bestDay || '--'}</div>
+              </div>
+              <div style={{ ...S.card, flex: 1, padding: 14, textAlign: 'center' }}>
+                <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>WORST DAY</span>
+                <div style={{ fontSize: 18, fontWeight: 600, fontFamily: T.fm, color: T.red, marginTop: 6 }}>{stats.worstDay || '--'}</div>
+              </div>
+            </div>
+            <div style={{ ...S.card, padding: 14, marginBottom: 13 }}>
+              <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, display: 'block', marginBottom: 12 }}>PER-COMPOUND</span>
               {stats.byCompound.map((c, i) => (
                 <div key={i} style={{ marginBottom: i < stats.byCompound.length - 1 ? 10 : 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -711,14 +801,15 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
             {/* Weekly AI Summary */}
             {isPro ? (
-            <div style={{ ...S.card, padding: 14, marginBottom: 10, borderColor: T.goldM, background: 'rgba(201,168,76,0.03)' }}>
+            <div style={{ ...S.card, padding: 14, marginBottom: 13, border: `1px solid ${T.goldM}`, background: 'rgba(201,168,76,0.03)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: weeklySummary ? 10 : 0 }}>
-                <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY</span>
+                <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY</span>
                 <button onClick={async () => {
                   if (loadingSummary) return;
                   setLoadingSummary(true);
                   try {
-                    const result = await generateWeeklySummary(logs, checkins, stack);
+                    const adherence = getAdherenceStats ? getAdherenceStats((logs || []).map(l => l.compoundId ? l : { ...l, compoundId: l.cid }), stack, 30) : null;
+                    const result = await generateWeeklySummary(logs, checkins, stack, { subjective, labResults: labResults || [], profile, adherenceStats: adherence });
                     setWeeklySummary(result);
                   } catch { setWeeklySummary({ summary: 'Could not generate summary. Check your connection.', date: new Date().toISOString() }); }
                   setLoadingSummary(false);
@@ -741,12 +832,12 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
             </div>
             ) : (
             <ProLock onUpgrade={onUpgrade} label="Weekly AI Summary">
-              <div style={{ ...S.card, padding: 14, marginBottom: 10, borderColor: T.goldM, background: 'rgba(201,168,76,0.03)' }}>
+              <div style={{ ...S.card, padding: 14, marginBottom: 13, border: `1px solid ${T.goldM}`, background: 'rgba(201,168,76,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY <ProBadge /></span>
-                  <span style={{ ...S.pill, fontSize: 9, padding: '3px 10px', borderColor: T.goldM, color: T.gold }}>Generate</span>
+                  <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY <ProBadge /></span>
+                  <span style={{ ...S.pill, fontSize: 9, padding: '4px 12px', borderColor: T.goldM, color: T.gold, borderRadius: 6 }}>Generate</span>
                 </div>
-                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 6 }}>AI-powered weekly coaching based on your logs, check-ins, and protocol.</div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 8, lineHeight: 1.5 }}>AI-powered weekly coaching based on your logs, check-ins, and protocol.</div>
               </div>
             </ProLock>
             )}
@@ -771,12 +862,12 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
               if (stats.overallPct >= 90 && avgEnergy >= 6) suggestions.push({ icon: '\u2728', text: 'Excellent adherence and strong subjective scores. Your protocol appears well-dialed.' });
               if (suggestions.length === 0) return null;
               return (
-                <div style={{ ...S.card, padding: 14, marginBottom: 10 }}>
-                  <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, display: 'block', marginBottom: 10 }}>SMART SUGGESTIONS</span>
+                <div style={{ ...S.card, padding: 14, marginBottom: 13, borderLeft: `3px solid ${T.teal}` }}>
+                  <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, display: 'block', marginBottom: 10 }}>SMART SUGGESTIONS</span>
                   {suggestions.map((s, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < suggestions.length - 1 ? 10 : 0 }}>
-                      <span style={{ fontSize: 16, flexShrink: 0 }}>{s.icon}</span>
-                      <span style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>{s.text}</span>
+                    <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < suggestions.length - 1 ? 10 : 0, padding: '4px 0' }}>
+                      <span style={{ fontSize: 14, flexShrink: 0, width: 20, textAlign: 'center' }}>{s.icon}</span>
+                      <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>{s.text}</span>
                     </div>
                   ))}
                 </div>
@@ -793,13 +884,13 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     if (!isPro) {
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results <ProBadge /></p></header>
+          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results <ProBadge /></p></header>
           {segBar}
           <ProLock onUpgrade={onUpgrade} label="Lab Results">
-            <div style={{ textAlign: 'center', paddingTop: 40 }}>
-              <Enso size={48} />
-              <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1, lineHeight: 1.3, padding: '0 20px' }}>Your bloodwork tells the story your mirror cannot.</p>
-              <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 12, lineHeight: 1.6, padding: '0 30px' }}>Add lab results to see how your protocol is landing in the body{'\n'}and what your markers reveal.</p>
+            <div style={{ textAlign: 'center', padding: '50px 20px 40px' }}>
+              <div style={{ width: 56, height: 56, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Enso size={28} /></div>
+              <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, lineHeight: 1.3, padding: '0 20px' }}>Your bloodwork tells the story your mirror cannot.</p>
+              <p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 12, lineHeight: 1.6, letterSpacing: 0.5, padding: '0 30px' }}>Add lab results to see how your protocol is landing in the body and what your markers reveal.</p>
               <button style={{ ...S.logBtn, marginTop: 24 }}>Add Lab Results</button>
             </div>
           </ProLock>
@@ -825,7 +916,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
+          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
           {segBar}
           <button onClick={() => { setLabView('list'); setSelectedLabId(null); }} style={{ background: 'none', border: 'none', color: T.gold, fontFamily: T.fm, fontSize: 11, cursor: 'pointer', marginBottom: 10, padding: 0 }}>{'\u2190'} Labs</button>
 
@@ -985,7 +1076,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Add Lab Results</p></header>
+          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Add Lab Results</p></header>
           {segBar}
           <button onClick={() => { setLabView('list'); resetAddForm(); }} style={{ background: 'none', border: 'none', color: T.gold, fontFamily: T.fm, fontSize: 11, cursor: 'pointer', marginBottom: 10, padding: 0 }}>{'\u2190'} Cancel</button>
 
@@ -1083,12 +1174,12 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     if (results.length === 0) {
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
+          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
           {segBar}
-          <div style={{ textAlign: 'center', paddingTop: 40 }}>
-            <Enso size={48} />
-            <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1, lineHeight: 1.3, padding: '0 20px' }}>Your bloodwork tells the story your mirror cannot.</p>
-            <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 12, lineHeight: 1.6, padding: '0 30px' }}>Add lab results to see how your protocol is landing in the body{'\n'}and what your markers reveal.</p>
+          <div style={{ textAlign: 'center', padding: '50px 20px 40px' }}>
+            <div style={{ width: 56, height: 56, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Enso size={28} /></div>
+            <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, lineHeight: 1.3, padding: '0 20px' }}>Your bloodwork tells the story your mirror cannot.</p>
+            <p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 12, lineHeight: 1.6, letterSpacing: 0.5, padding: '0 30px' }}>Add lab results to see how your protocol is landing{'\n'}in the body and what your markers reveal.</p>
             <button onClick={() => setLabView('add')} style={{ ...S.logBtn, marginTop: 24 }}>Add Lab Results</button>
           </div>
         </div>
@@ -1101,18 +1192,18 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
     return (
       <div style={{ animation: 'fadeUp .5s ease both' }}>
-        <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
+        <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
         {segBar}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ fontFamily: T.fd, fontSize: 18, color: T.t1, fontWeight: 300 }}>Lab Results</div>
-          <button onClick={() => setLabView('add')} style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid ' + (T.goldM || 'rgba(201,168,76,0.3)'), color: T.gold, fontFamily: T.fm, fontSize: 11, padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}>+ Add</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 }}>
+          <div style={{ fontFamily: T.fd, fontSize: 18, color: T.t1, fontWeight: 300, letterSpacing: 0.5 }}>Lab Results</div>
+          <button onClick={() => setLabView('add')} style={{ background: T.goldS, border: `1px solid ${T.goldM}`, color: T.gold, fontFamily: T.fm, fontSize: 11, padding: '6px 14px', borderRadius: 6, cursor: 'pointer', letterSpacing: 0.5 }}>+ Add</button>
         </div>
 
         {!checklistDismissed && (
-          <div style={{ ...S.card, padding: 12, marginBottom: 10, border: '1px solid ' + (T.goldM || 'rgba(201,168,76,0.3)'), background: 'rgba(201,168,76,0.04)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>RECOMMENDED MARKERS</div>
+          <div style={{ ...S.card, padding: 14, marginBottom: 13, border: `1px solid ${T.goldM}`, background: 'rgba(201,168,76,0.03)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+              <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>RECOMMENDED MARKERS</div>
               <button onClick={() => setChecklistDismissed(true)} style={{ background: 'none', border: 'none', color: T.t3, fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>{'\u00D7'}</button>
             </div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -1129,7 +1220,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
           const dotColor = interp ? getStatusColor(interp.overallAssessment) : (T.t4 || T.t3);
           const chips = priorityMarkers.filter(k => r.parsedMarkers && r.parsedMarkers[k] != null).slice(0, 5);
           return (
-            <div key={r.id} style={{ ...S.card, padding: 14, marginBottom: 10, cursor: 'pointer' }} onClick={() => { setSelectedLabId(r.id); setLabView('detail'); }}>
+            <div key={r.id} style={{ ...S.card, padding: 14, marginBottom: 13, cursor: 'pointer' }} onClick={() => { setSelectedLabId(r.id); setLabView('detail'); }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                 <div>
                   <div style={{ fontFamily: T.fd, fontSize: 16, color: T.t1, fontWeight: 300 }}>{r.date}</div>
@@ -1165,9 +1256,9 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
               <div onClick={e => e.stopPropagation()}>
                 {interp ? (
-                  <div style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, letterSpacing: 1 }}>VIEW ANALYSIS {'\u2192'}</div>
+                  <div style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, letterSpacing: 1.5, textTransform: 'uppercase' }}>VIEW ANALYSIS {'\u2192'}</div>
                 ) : (
-                  <button onClick={() => handleAnalyzeExisting(r)} disabled={analyzing} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid ' + (T.goldM || 'rgba(201,168,76,0.3)'), color: T.gold, fontFamily: T.fm, fontSize: 10, padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}>
+                  <button onClick={() => handleAnalyzeExisting(r)} disabled={analyzing} style={{ background: T.goldS, border: `1px solid ${T.goldM}`, color: T.gold, fontFamily: T.fm, fontSize: 10, padding: '6px 14px', borderRadius: 6, cursor: 'pointer', letterSpacing: 0.5 }}>
                     {analyzing && analyzingId === r.id ? loadingText : 'Analyze'}
                   </button>
                 )}
@@ -1180,7 +1271,11 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
         {trendMarkers.length > 0 && (
           <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 10 }}>BIOMARKER TRENDS</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, transparent, ${T.goldM})` }} />
+              <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>BIOMARKER TRENDS</span>
+              <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, ${T.goldM}, transparent)` }} />
+            </div>
             {trendMarkers.map(k => {
               const points = [...results].filter(r => r.parsedMarkers && r.parsedMarkers[k] != null).sort((a, b) => a.date.localeCompare(b.date)).map(r => ({ label: r.date.slice(5), value: Number(r.parsedMarkers[k]) }));
               if (points.length < 2) return null;
@@ -1213,39 +1308,49 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
   return (
     <div style={{ animation: 'fadeUp .5s ease both' }}>
-      <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Progress Charts</p></header>
+      <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Progress Charts</p></header>
       {segBar}
 
-      {sorted.length < 2 ? <div style={{ textAlign: 'center', padding: '50px 0' }}><SamsaraSymbol size={48} /><p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1 }}>Not enough data yet</p><p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 8 }}>Add check-ins in the Body tab</p></div>
+      {sorted.length < 2 ? <div style={{ textAlign: 'center', padding: '60px 20px 40px' }}><div style={{ width: 48, height: 48, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SamsaraSymbol size={24} /></div><p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, lineHeight: 1.3 }}>The data awaits</p><p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 10, lineHeight: 1.6, letterSpacing: 0.5 }}>Log two or more check-ins in the Body tab{'\n'}to see your progress charts emerge.</p></div>
         : <div>
           {checkins.length >= 5 && (trajectory.daysToTargetWeight || trajectory.daysToTargetWaist) && (
-            <div style={{ ...S.card, padding: 14, marginBottom: 10, border: '1px solid ' + T.goldM, background: 'rgba(201,168,76,0.06)' }}>
-              <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, display: 'block', marginBottom: 8 }}>TRAJECTORY</span>
+            <div style={{ ...S.card, padding: 14, marginBottom: 13, border: `1px solid ${T.goldM}`, background: 'rgba(201,168,76,0.04)' }}>
+              <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, display: 'block', marginBottom: 10 }}>TRAJECTORY</span>
               {trajectory.daysToTargetWeight && (
-                <div style={{ fontSize: 13, fontFamily: T.fm, color: T.t1, marginBottom: 4 }}>
-                  170 lbs in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWeight} days</span> <span style={{ color: T.t3 }}>({trajectory.projectedWeightDate})</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: trajectory.daysToTargetWaist ? 8 : 0 }}>
+                  <span style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, width: 50 }}>Weight</span>
+                  <span style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>170 lbs in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWeight}d</span></span>
+                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginLeft: 'auto' }}>{trajectory.projectedWeightDate}</span>
                 </div>
               )}
               {trajectory.daysToTargetWaist && (
-                <div style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>
-                  26in waist in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWaist} days</span> <span style={{ color: T.t3 }}>({trajectory.projectedWaistDate})</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, width: 50 }}>Waist</span>
+                  <span style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>26in in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWaist}d</span></span>
+                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginLeft: 'auto' }}>{trajectory.projectedWaistDate}</span>
                 </div>
               )}
             </div>
           )}
 
           {milestones.length > 0 ? (
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: 13 }}>
+              <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 8 }}>MILESTONES</div>
               {milestones.map((m, i) => (
-                <div key={i} style={{ ...S.card, padding: '8px 12px', marginBottom: 4, border: '1px solid ' + T.goldM, background: 'rgba(201,168,76,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontFamily: T.fm, color: T.gold }}>{m.label}</span>
-                  <span style={{ fontSize: 10, fontFamily: T.fm, color: T.t3 }}>{m.date}</span>
+                <div key={i} style={{ ...S.card, padding: '10px 14px', marginBottom: 6, borderLeft: `3px solid ${T.gold}`, background: 'rgba(201,168,76,0.04)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.goldS, border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, color: T.gold }}>{'\u2605'}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 12, fontFamily: T.fm, color: T.t1, fontWeight: 500 }}>{m.label}</span>
+                  </div>
+                  <span style={{ fontSize: 10, fontFamily: T.fm, color: T.t3, letterSpacing: 0.5, flexShrink: 0 }}>{m.date}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ ...S.card, padding: '10px 12px', marginBottom: 10, textAlign: 'center' }}>
-              <span style={{ fontSize: 11, fontFamily: T.fm, color: T.t3 }}>No milestones yet ... keep logging</span>
+            <div style={{ ...S.card, padding: '14px', marginBottom: 13, textAlign: 'center', borderStyle: 'dashed' }}>
+              <span style={{ fontSize: 11, fontFamily: T.fm, color: T.t3, letterSpacing: 0.5 }}>No milestones yet -- keep logging</span>
             </div>
           )}
 
@@ -1264,6 +1369,9 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
           </ChartCard>}
           <ChartCard title="Adherence - Last 30 Days" height={120}><AdherenceHeatmap logs={logs} stack={stack} /></ChartCard>
 
+          {/* Subjective tracking */}
+          <SubjectiveSection subjective={subjective} setSubjective={setSubjective} getSubjectiveChartData={getSubjectiveChartData} />
+
           {/* Lab biomarker timeline overlay */}
           {(() => {
             if (!results || results.length < 2) return null;
@@ -1281,8 +1389,12 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
             const trendKeys = Object.keys(markerCounts).filter(k => markerCounts[k] >= 2).slice(0, 4);
             if (trendKeys.length === 0) return null;
             return (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 10, marginTop: 10 }}>BIOMARKER TRENDS</div>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8 }}>
+                  <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, transparent, ${T.goldM})` }} />
+                  <span style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>BIOMARKER TRENDS</span>
+                  <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, ${T.goldM}, transparent)` }} />
+                </div>
                 {trendKeys.map(k => {
                   const points = sortedResults.filter(r => r.parsedMarkers && r.parsedMarkers[k] != null).map(r => ({ label: r.date.slice(5), value: Number(r.parsedMarkers[k]) }));
                   const last = points[points.length - 1].value;

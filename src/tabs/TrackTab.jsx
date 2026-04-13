@@ -11,7 +11,7 @@ import LIB from '../data/library';
 import { analyzeStack } from '../data/interactions';
 import { getAdherenceStats } from '../data/analytics';
 
-/* ── Tissue quality analysis ─────────────────────────── */
+/* -- Tissue quality analysis ---------------------------------------- */
 function analyzeSites(siteHistory) {
   const result = {};
   const cutoff = new Date();
@@ -23,13 +23,11 @@ function analyzeSites(siteHistory) {
     const recent = siteLogs.filter(s => s.date >= cutoffStr);
     const recentUses = recent.length;
 
-    // Avg quality from last 5 entries
     const lastFive = [...siteLogs].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time)).slice(0, 5);
     const avgQuality = lastFive.length > 0
       ? lastFive.reduce((sum, l) => sum + (l.tissueQuality || 3), 0) / lastFive.length
       : 3;
 
-    // Trend: compare last 3 vs previous 3
     const last3 = lastFive.slice(0, 3);
     const prev3 = lastFive.slice(3);
     let qualityTrend = 'stable';
@@ -40,10 +38,9 @@ function analyzeSites(siteHistory) {
       else if (recentAvg < prevAvg - 0.3) qualityTrend = 'declining';
     }
 
-    // Status
     let status = 'ok', label = 'OK', color = T.t2, message = 'Normal tissue quality.';
     if (avgQuality < 2.5 || (avgQuality < 3 && recentUses >= 4)) {
-      status = 'rest'; label = 'Rest Required'; color = 'rgba(220,80,80,0.8)';
+      status = 'rest'; label = 'Rest'; color = 'rgba(220,80,80,0.8)';
       message = 'Tissue quality poor. Rest this site for at least 7 days.';
     } else if (recentUses >= 5) {
       status = 'overused'; label = 'Overused'; color = T.amber;
@@ -53,7 +50,6 @@ function analyzeSites(siteHistory) {
       message = 'Good tissue quality. Optimal for injection.';
     }
 
-    // Last used
     const lastLog = siteLogs.length > 0 ? [...siteLogs].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
     const daysSinceLast = lastLog ? Math.floor((new Date() - new Date(lastLog.date + 'T12:00:00')) / 86400000) : null;
 
@@ -62,9 +58,9 @@ function analyzeSites(siteHistory) {
   return result;
 }
 
-/* ── Quality rating config ─────────────────────────── */
+/* -- Quality rating config ---------------------------------------- */
 const QUALITY_OPTIONS = [
-  { value: 1, label: 'Painful/Lump', color: 'rgba(220,80,80,0.8)' },
+  { value: 1, label: 'Painful', color: 'rgba(220,80,80,0.8)' },
   { value: 2, label: 'Tender', color: T.amber },
   { value: 3, label: 'Normal', color: T.t2 },
   { value: 4, label: 'Good', color: T.green },
@@ -74,7 +70,7 @@ const QUALITY_OPTIONS = [
 const TREND_ARROWS = { improving: '\u2191', declining: '\u2193', stable: '\u2192' };
 const TREND_COLORS = { improving: T.green, declining: 'rgba(220,80,80,0.8)', stable: T.t3 };
 
-/* ── RetaCard (unchanged) ─────────────────────────── */
+/* -- RetaCard (weekly compound card) ---------------------------------------- */
 function RetaCard({ compound, logged, onLog }) {
   const dn = daysNextWeekly();
   const dayOfWeek = new Date().getDay();
@@ -83,32 +79,35 @@ function RetaCard({ compound, logged, onLog }) {
   const history = esc ? esc.protocol.slice(0, esc.currentStep + 1) : [];
 
   return (
-    <div style={{ ...S.card, borderColor: logged ? 'rgba(92,184,112,0.15)' : T.goldM + '30', padding: '16px', marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 15, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>Retatrutide</span>
-        <span style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, letterSpacing: 1 }}>WEEKLY</span>
+    <div style={{ ...S.card, borderColor: logged ? 'rgba(92,184,112,0.15)' : T.goldM + '30', padding: '12px 14px', marginBottom: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>Retatrutide</span>
+        <span style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, letterSpacing: 1 }}>WEEKLY</span>
       </div>
-      <div style={{ fontSize: 13, color: T.t2, fontFamily: T.fm, marginBottom: 10 }}>Current dose: <span style={{ color: T.gold }}>{compound.dose} {compound.unit}</span></div>
-      {/* Week progress */}
-      <div style={{ display: 'flex', gap: 3, marginBottom: 10 }}>{[0, 1, 2, 3, 4, 5, 6].map(d => <div key={d} style={{ flex: 1, height: 6, borderRadius: 3, background: d < dayOfWeek ? 'rgba(201,168,76,0.3)' : d === dayOfWeek ? T.gold : 'rgba(255,255,255,0.04)' }} />)}</div>
-      <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>{dayOfWeek} of 7 days</div>
-      {/* Escalation timeline */}
-      {history.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        {history.map((s, i) => <span key={i} style={{ fontSize: 11, fontFamily: T.fm, color: i === history.length - 1 ? T.gold : T.t3 }}>{s}{i === history.length - 1 ? ' \u2190 NOW' : ''}{i < history.length - 1 ? ' \u2192' : ''}</span>)}
+      <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, marginBottom: 8 }}>Current: <span style={{ color: T.gold }}>{compound.dose} {compound.unit}</span></div>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 6 }}>{[0, 1, 2, 3, 4, 5, 6].map(d => <div key={d} style={{ flex: 1, height: 4, borderRadius: 2, background: d < dayOfWeek ? 'rgba(201,168,76,0.3)' : d === dayOfWeek ? T.gold : 'rgba(255,255,255,0.04)' }} />)}</div>
+      <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>{dayOfWeek}/7 days</div>
+      {history.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+        {history.map((s, i) => <span key={i} style={{ fontSize: 10, fontFamily: T.fm, color: i === history.length - 1 ? T.gold : T.t3 }}>{s}{i === history.length - 1 ? ' \u2190' : ''}{i < history.length - 1 ? ' \u2192' : ''}</span>)}
       </div>}
-      {/* Escalation status */}
-      {escStatus && <div style={{ fontSize: 11, color: escStatus.canStep ? T.amber : T.t3, fontFamily: T.fm, marginBottom: 8 }}>
-        {escStatus.canStep ? '\u2191 Ready to escalate to ' + escStatus.nextDose + ' ' + compound.unit : escStatus.label}
+      {escStatus && <div style={{ fontSize: 10, color: escStatus.canStep ? T.amber : T.t3, fontFamily: T.fm, marginBottom: 6 }}>
+        {escStatus.canStep ? '\u2191 Ready: ' + escStatus.nextDose + ' ' + compound.unit : escStatus.label}
       </div>}
-      {compound.nextPlanned && <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginBottom: 12 }}>Next planned: <span style={{ color: T.amber }}>{compound.nextPlanned} {compound.unit}</span></div>}
-      <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 12 }}>Next: <span style={{ color: T.t2 }}>Sunday</span> {'\u00B7'} {dn}d away</div>
-      {logged ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '8px 0' }}><span style={{ color: '#5cb870', fontSize: 18, animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block' }}>{'\u2713'}</span><span style={{ fontSize: 12, color: '#5cb870', fontFamily: T.fm }}>Logged {logged.time}</span></div>
-        : <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(compound); }} style={{ ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center' }} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log This Week's Dose</button>}
+      {compound.nextPlanned && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>Next planned: <span style={{ color: T.amber }}>{compound.nextPlanned} {compound.unit}</span></div>}
+      <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>Next: <span style={{ color: T.t2 }}>Sunday</span> {'\u00B7'} {dn}d</div>
+      {logged ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', padding: '6px 0' }}>
+          <span style={{ color: '#5cb870', fontSize: 16, animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block' }}>{'\u2713'}</span>
+          <span style={{ fontSize: 10, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span>
+        </div>
+      ) : (
+        <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(compound); }} style={{ ...S.logBtn, width: '100%', padding: '8px', textAlign: 'center', fontSize: 12 }} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log This Week's Dose</button>
+      )}
     </div>
   );
 }
 
-/* ── TodayView with site alert banners ─────────────────────────── */
+/* -- TodayView ---------------------------------------- */
 const ROUTE_LABELS = { subq: 'SubQ', im: 'IM', oral: 'Oral', topical: 'Topical', intranasal: 'Nasal', iv: 'IV' };
 const ROUTE_ICONS = { subq: '\uD83D\uDC89', im: '\uD83D\uDC89', oral: '\uD83D\uDC8A', topical: '\u2728', intranasal: '\uD83D\uDCA8', iv: '\uD83C\uDFE5' };
 
@@ -116,11 +115,9 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
   const t = getToday();
   const [routePickerId, setRoutePickerId] = useState(null);
   const [now, setNow] = useState(Date.now());
-  // Refresh timers every 60s
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
-  // Streak + adherence
+
   const adherence = useMemo(() => getAdherenceStats(logs, stack, 90), [logs, stack]);
-  // Half-life helper: time since last dose for each compound
   const lastDoseMap = useMemo(() => {
     const map = {};
     stack.forEach(c => {
@@ -133,6 +130,7 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
     });
     return map;
   }, [logs, stack, now]);
+
   const groups = {};
   TIMING_GROUPS.forEach(g => { groups[g.id] = []; });
   stack.forEach(c => {
@@ -141,9 +139,7 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
     groups[group].push(c);
   });
 
-  // Compute interaction insights for the whole stack
   const stackAnalysis = useMemo(() => stack.length > 1 ? analyzeStack(stack, LIB) : null, [stack]);
-  // Build per-compound interaction map: compoundLibId → relevant notes
   const interactionMap = useMemo(() => {
     if (!stackAnalysis) return {};
     const map = {};
@@ -155,101 +151,103 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
   }, [stackAnalysis]);
 
   // Derive site alerts from analysis
-  const restSites = [];
-  const overusedSites = [];
-  let suggestedSite = null;
-  if (siteAnalysis) {
-    SITE_LIST.forEach(s => {
-      const a = siteAnalysis[s.id];
-      if (!a) return;
-      if (a.status === 'rest') restSites.push(s);
-      else if (a.status === 'overused') overusedSites.push(s);
-      if (!suggestedSite && a.status === 'fresh') suggestedSite = s;
-    });
-    if (!suggestedSite) {
-      // Fallback: pick first ok site
-      const okSite = SITE_LIST.find(s => siteAnalysis[s.id] && siteAnalysis[s.id].status === 'ok');
-      suggestedSite = okSite || null;
+  const alerts = useMemo(() => {
+    const restSites = [];
+    const overusedSites = [];
+    let suggestedSite = null;
+    if (siteAnalysis) {
+      SITE_LIST.forEach(s => {
+        const a = siteAnalysis[s.id];
+        if (!a) return;
+        if (a.status === 'rest') restSites.push(s);
+        else if (a.status === 'overused') overusedSites.push(s);
+        if (!suggestedSite && a.status === 'fresh') suggestedSite = s;
+      });
+      if (!suggestedSite) {
+        const okSite = SITE_LIST.find(s => siteAnalysis[s.id] && siteAnalysis[s.id].status === 'ok');
+        suggestedSite = okSite || null;
+      }
     }
-  }
+    return { restSites, overusedSites, suggestedSite };
+  }, [siteAnalysis]);
+
+  const hasAlerts = alerts.restSites.length > 0 || alerts.overusedSites.length > 0 || alerts.suggestedSite;
 
   return (
     <div style={{ animation: 'fadeUp .4s ease both' }}>
-      {/* Site alert banners */}
-      {restSites.length > 0 && (
-        <div style={{ background: 'rgba(220,80,80,0.1)', border: '1px solid rgba(220,80,80,0.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14 }}>{'\u26A0'}</span>
-          <span style={{ fontSize: 11, color: 'rgba(220,80,80,0.9)', fontFamily: T.fm }}>Rest required: {restSites.map(s => s.label).join(', ')}</span>
-        </div>
-      )}
-      {overusedSites.length > 0 && (
-        <div style={{ background: 'rgba(255,180,50,0.08)', border: '1px solid rgba(255,180,50,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14 }}>{'\u21BB'}</span>
-          <span style={{ fontSize: 11, color: T.amber, fontFamily: T.fm }}>Overused: {overusedSites.map(s => s.label).join(', ')}</span>
-        </div>
-      )}
-      {suggestedSite && (
-        <div style={{ background: T.goldS, border: '1px solid ' + T.goldM, borderRadius: 8, padding: '8px 12px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14 }}>{'\u2736'}</span>
-          <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm }}>Suggested site today: <span style={{ fontWeight: 600 }}>{suggestedSite.label}</span></span>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2, letterSpacing: 1 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {onQuickCheckin && <button onClick={onQuickCheckin} style={{ ...S.pill, fontSize: 10, padding: '4px 10px', borderColor: 'rgba(0,210,180,0.3)', color: T.teal }}>Check-in {'\u2192'}</button>}
-          <button onClick={onOpenSites} style={{ ...S.pill, fontSize: 10, padding: '4px 10px', borderColor: T.goldM, color: T.gold }}>Sites</button>
-        </div>
-      </div>
-
-      {/* Streak banner */}
-      {adherence.currentStreak > 0 && (
-        <div style={{ ...S.card, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderColor: adherence.currentStreak >= 7 ? 'rgba(201,168,76,0.25)' : 'rgba(92,184,112,0.15)', background: adherence.currentStreak >= 7 ? 'rgba(201,168,76,0.04)' : 'rgba(92,184,112,0.03)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>{adherence.currentStreak >= 30 ? '\uD83D\uDD25' : adherence.currentStreak >= 7 ? '\uD83D\uDD25' : '\u2B50'}</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.t1, fontFamily: T.fb }}>{adherence.currentStreak} day streak</div>
-              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{adherence.overallPct}% adherence {'\u00B7'} Best: {adherence.longestStreak}d</div>
-            </div>
-          </div>
-          {adherence.currentStreak >= 7 && (
-            <div style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
-              {adherence.currentStreak >= 30 ? 'Legendary' : adherence.currentStreak >= 14 ? 'On Fire' : 'Consistent'}
-            </div>
+      {/* Unified site alert banner -- one compact line with all info */}
+      {hasAlerts && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 8, padding: '6px 10px', marginBottom: 8,
+          background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border, borderRadius: 8,
+          alignItems: 'center',
+        }}>
+          {alerts.restSites.length > 0 && (
+            <span style={{ fontSize: 10, color: 'rgba(220,80,80,0.85)', fontFamily: T.fm }}>
+              {'\u26A0'} Rest: {alerts.restSites.map(s => s.label).join(', ')}
+            </span>
+          )}
+          {alerts.overusedSites.length > 0 && (
+            <span style={{ fontSize: 10, color: T.amber, fontFamily: T.fm }}>
+              {'\u21BB'} Overused: {alerts.overusedSites.map(s => s.label).join(', ')}
+            </span>
+          )}
+          {alerts.suggestedSite && (
+            <span style={{ fontSize: 10, color: T.gold, fontFamily: T.fm }}>
+              {'\u2736'} Use: <span style={{ fontWeight: 600 }}>{alerts.suggestedSite.label}</span>
+            </span>
           )}
         </div>
       )}
 
-      {/* Empty state for first-time users */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <p style={{ fontFamily: T.fd, fontSize: 17, fontWeight: 300, color: T.t2, letterSpacing: 1, margin: 0 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {onQuickCheckin && <button onClick={onQuickCheckin} style={{ ...S.pill, fontSize: 9, padding: '3px 8px', borderColor: 'rgba(0,210,180,0.3)', color: T.teal }}>Check-in</button>}
+          <button onClick={onOpenSites} style={{ ...S.pill, fontSize: 9, padding: '3px 8px', borderColor: T.goldM, color: T.gold }}>Sites</button>
+        </div>
+      </div>
+
+      {/* Streak -- compact single line */}
+      {adherence.currentStreak > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', marginBottom: 8,
+          background: adherence.currentStreak >= 7 ? 'rgba(201,168,76,0.04)' : 'rgba(92,184,112,0.03)',
+          border: '1px solid ' + (adherence.currentStreak >= 7 ? 'rgba(201,168,76,0.15)' : 'rgba(92,184,112,0.1)'),
+          borderRadius: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>{adherence.currentStreak >= 7 ? '\uD83D\uDD25' : '\u2B50'}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{adherence.currentStreak}d</span>
+          <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{adherence.overallPct}% adherence</span>
+          {adherence.currentStreak >= 7 && (
+            <span style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginLeft: 'auto' }}>
+              {adherence.currentStreak >= 30 ? 'Legendary' : adherence.currentStreak >= 14 ? 'On Fire' : 'Consistent'}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Empty state */}
       {stack.length === 0 && (
-        <div style={{ ...S.card, padding: '20px 16px', textAlign: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.3 }}>{'\u2295'}</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.t1, fontFamily: T.fb, marginBottom: 6 }}>Add Your First Compound</div>
-          <div style={{ fontSize: 12, color: T.t3, fontFamily: T.fm, lineHeight: 1.6 }}>Head to the Profile tab and browse the library to add compounds to your stack. They'll appear here ready to log.</div>
+        <div style={{ ...S.card, padding: '16px', textAlign: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 24, marginBottom: 6, opacity: 0.3 }}>{'\u2295'}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb, marginBottom: 4 }}>Add Your First Compound</div>
+          <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.5 }}>Browse the library in Profile to add compounds to your stack.</div>
         </div>
       )}
 
-      {/* First dose guidance */}
-      {stack.length > 0 && logs.length === 0 && (
-        <div style={{ ...S.card, padding: '12px 14px', marginBottom: 12, borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.04)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginBottom: 4 }}>{'\u2139'} Log Your First Dose</div>
-          <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>Tap "Log" after each injection to build your protocol history. Samsara tracks streaks, adherence, and helps you stay consistent.</div>
-        </div>
-      )}
-
+      {/* Timing groups */}
       {TIMING_GROUPS.map(g => {
         const compounds = groups[g.id];
         if (!compounds || compounds.length === 0) return null;
         return (
           <div key={g.id}>
-            <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6, marginTop: 8 }}>{g.icon} {g.label}</div>
+            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4, marginTop: 6 }}>{g.icon} {g.label}</div>
             {compounds.map(c => {
               const isW = c.frequency === 'weekly';
               const logged = isW ? logs.find(l => l.cid === c.id && l.date >= getWeekStart()) : logs.find(l => l.cid === c.id && l.date === t);
               const cNotes = interactionMap[c.libId] || [];
               if (isW) return <RetaCard key={c.id} compound={c} logged={logged} onLog={onLog} />;
-              // Look up library entry for administrationOptions
               const libEntry = LIB.find(l => l.id === c.libId) || {};
               const routes = libEntry.administrationOptions || [];
               const hasMultiRoute = routes.length > 1;
@@ -257,75 +255,85 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
               const halfLife = libEntry.halfLifeHours || 0;
               const lastDoseTs = lastDoseMap[c.id];
               const hoursSince = lastDoseTs ? (now - lastDoseTs) / 3600000 : null;
-              // Status: active (< 1 half-life), clearing (1-2), cleared (>2)
               const doseStatus = hoursSince != null && halfLife > 0
                 ? hoursSince < halfLife ? 'active' : hoursSince < halfLife * 2 ? 'clearing' : 'cleared'
                 : null;
               const peakMin = libEntry.peakPlasmaMinutes || 0;
               const minSince = hoursSince != null ? hoursSince * 60 : null;
               const isPeaking = peakMin > 0 && minSince != null && minSince < peakMin * 1.5 && minSince > 0 && logged;
+
+              // Build clean meta line
+              const metaParts = [fmtDose(c)];
+              if (logged && logged.route) metaParts.push(ROUTE_LABELS[logged.route] || logged.route);
+              const statusPart = (() => {
+                if (logged && isPeaking) return { text: 'peaking', color: T.teal };
+                if (logged && doseStatus === 'active') return { text: 'active', color: '#5cb870' };
+                if (!logged && hoursSince != null) {
+                  const col = doseStatus === 'cleared' ? T.t3 : T.amber;
+                  const txt = hoursSince < 1 ? Math.round(hoursSince * 60) + 'm ago' : hoursSince < 24 ? Math.round(hoursSince) + 'h ago' : Math.round(hoursSince / 24) + 'd ago';
+                  return { text: txt, color: col };
+                }
+                return null;
+              })();
+
               return (
                 <div key={c.id}>
-                  <div style={{ ...S.trackRow, ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
+                  <div style={{ ...S.trackRow, marginBottom: 6, padding: '10px 13px', ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={S.trackName}>{c.name}</div>
-                      <div style={S.trackMeta}>
-                        {fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u
-                        {logged && logged.route ? ` \u00B7 ${ROUTE_LABELS[logged.route] || logged.route}` : ''}
-                        {logged && isPeaking && <span style={{ color: T.teal }}> {'\u00B7'} peaking</span>}
-                        {logged && doseStatus === 'active' && !isPeaking && <span style={{ color: '#5cb870' }}> {'\u00B7'} active</span>}
-                        {!logged && hoursSince != null && <span style={{ color: doseStatus === 'cleared' ? T.t3 : T.amber }}> {'\u00B7'} {hoursSince < 1 ? Math.round(hoursSince * 60) + 'm ago' : hoursSince < 24 ? Math.round(hoursSince) + 'h ago' : Math.round(hoursSince / 24) + 'd ago'}</span>}
+                      <div style={{ ...S.trackName, fontSize: 13 }}>{c.name}</div>
+                      <div style={{ fontSize: 10, color: T.t3, marginTop: 2, fontFamily: T.fm, letterSpacing: 1 }}>
+                        {metaParts.join(' \u00B7 ')}
+                        {statusPart && <span style={{ color: statusPart.color }}> {'\u00B7'} {statusPart.text}</span>}
                       </div>
                     </div>
                     {logged ? (
                       <div style={S.loggedBadge}>
-                        <span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 18 }}>{'\u2713'}</span>
+                        <span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 16 }}>{'\u2713'}</span>
                         <span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span>
                       </div>
                     ) : (
                       <button onClick={() => {
                         if (hasMultiRoute) { setRoutePickerId(showingRoutes ? null : c.id); }
                         else { if (navigator.vibrate) navigator.vibrate(40); onLog(c); }
-                      }} style={S.logBtn} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>
+                      }} style={{ ...S.logBtn, fontSize: 12, padding: '6px 12px' }} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>
                         Log
                       </button>
                     )}
                   </div>
-                  {/* Route picker for multi-route compounds */}
+                  {/* Route picker */}
                   {showingRoutes && !logged && (
-                    <div style={{ display: 'flex', gap: 6, padding: '6px 12px 10px', animation: 'fadeUp .2s ease both' }}>
+                    <div style={{ display: 'flex', gap: 4, padding: '4px 12px 8px', animation: 'fadeUp .2s ease both' }}>
                       {routes.map(route => (
                         <button key={route} onClick={() => {
                           if (navigator.vibrate) navigator.vibrate(40);
                           onLog(c, route);
                           setRoutePickerId(null);
                         }} style={{
-                          flex: 1, padding: '8px 6px', background: 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${T.goldM}`, borderRadius: 10, cursor: 'pointer',
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                          flex: 1, padding: '6px 4px', background: 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${T.goldM}`, borderRadius: 8, cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                         }}>
-                          <span style={{ fontSize: 14 }}>{ROUTE_ICONS[route] || '\uD83D\uDC89'}</span>
-                          <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, fontWeight: 500 }}>{ROUTE_LABELS[route] || route}</span>
+                          <span style={{ fontSize: 12 }}>{ROUTE_ICONS[route] || '\uD83D\uDC89'}</span>
+                          <span style={{ fontSize: 10, color: T.gold, fontFamily: T.fm }}>{ROUTE_LABELS[route] || route}</span>
                         </button>
                       ))}
                       <button onClick={() => setRoutePickerId(null)} style={{
-                        padding: '8px 10px', background: 'rgba(255,255,255,0.02)',
-                        border: `1px solid ${T.border}`, borderRadius: 10, cursor: 'pointer',
+                        padding: '6px 8px', background: 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${T.border}`, borderRadius: 8, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <span style={{ fontSize: 12, color: T.t3 }}>{'\u2715'}</span>
+                        <span style={{ fontSize: 11, color: T.t3 }}>{'\u2715'}</span>
                       </button>
                     </div>
                   )}
-                  {/* Interaction notes shown at log time */}
+                  {/* Interaction notes */}
                   {!logged && cNotes.length > 0 && (
-                    <div style={{ marginTop: -4, marginBottom: 8, paddingLeft: 12, paddingRight: 12 }}>
+                    <div style={{ marginTop: -2, marginBottom: 6, paddingLeft: 12, paddingRight: 12 }}>
                       {cNotes.slice(0, 2).map((n, i) => {
                         const isGood = n.type === 'synergy';
                         const isDanger = n.severity === 'danger' || n.type === 'conflict';
-                        const icon = isGood ? '\u25CF' : isDanger ? '\u25CF' : '\u25CF';
                         const color = isGood ? '#5cb870' : isDanger ? 'rgba(220,80,80,0.85)' : T.amber;
-                        return <div key={i} style={{ fontSize: 11, color, fontFamily: T.fm, lineHeight: 1.5, padding: '2px 0', display: 'flex', gap: 6, alignItems: 'flex-start' }}><span style={{ fontSize: 6, marginTop: 5, flexShrink: 0 }}>{icon}</span><span>{n.note}</span></div>;
+                        return <div key={i} style={{ fontSize: 10, color, fontFamily: T.fm, lineHeight: 1.4, padding: '1px 0', display: 'flex', gap: 5, alignItems: 'flex-start' }}><span style={{ fontSize: 5, marginTop: 4, flexShrink: 0 }}>{'\u25CF'}</span><span>{n.note}</span></div>;
                       })}
                     </div>
                   )}
@@ -339,7 +347,7 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
   );
 }
 
-/* ── VialsView (unchanged) ─────────────────────────── */
+/* -- VialsView (unchanged) ---------------------------------------- */
 function VialsView({ vials, logs, onNewVial, stack }) {
   const [confirmId, setConfirmId] = useState(null);
   const timerRef = useRef(null);
@@ -358,7 +366,6 @@ function VialsView({ vials, logs, onNewVial, stack }) {
       return (
         <div key={c.id} style={S.vialCard}>
           <div style={S.vialHeader}><span style={S.vialName}>{c.name}</span><span style={S.vialConc}>{cn.toFixed(1)} mg/ml</span></div>
-          {/* Freshness indicator */}
           <div style={{ fontSize: 10, color: fresh.color, fontFamily: T.fm, marginBottom: 8 }}>{fresh.label}</div>
           <div style={S.barTrack}><div style={{ ...S.barFill, width: `${Math.min(pct * 100, 100)}%`, background: pct > 0.85 ? 'rgba(196,92,74,0.7)' : `linear-gradient(90deg,${T.gold},${T.amber})` }} /></div>
           <div style={S.vialStats}><span>{unitsOf(c).toFixed(1)}u/dose</span><span>{rem.toFixed(0)} left (~5% waste)</span><span>{Math.floor(dl)}d</span></div>
@@ -369,17 +376,12 @@ function VialsView({ vials, logs, onNewVial, stack }) {
   );
 }
 
-/* ── SitesView (upgraded with analysis, detail cards, rotation plan) ─────────────────────────── */
+/* -- SitesView (cleaned up) ---------------------------------------- */
 function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, siteLogData, onSiteLogStepAction }) {
-  const [expandedSite, setExpandedSite] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
+  const [showRotation, setShowRotation] = useState(false);
   const suggested = suggestNextSite(siteHistory);
   const suggestedAnalysis = siteAnalysis ? siteAnalysis[suggested.id] : null;
-
-  // Rotation health: count how many sites are in bad shape
-  const restCount = SITE_LIST.filter(s => siteAnalysis && siteAnalysis[s.id]?.status === 'rest').length;
-  const overusedCount = SITE_LIST.filter(s => siteAnalysis && siteAnalysis[s.id]?.status === 'overused').length;
-  const healthColor = restCount > 0 ? 'rgba(220,80,80,0.8)' : overusedCount >= 3 ? T.amber : T.green;
 
   // 7-day rotation plan
   const rotationPlan = useMemo(() => {
@@ -407,18 +409,17 @@ function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, s
     return plan;
   }, [siteAnalysis, stack]);
 
-  // Quality dots renderer
+  // Quality dots renderer (compact)
   const renderQualityDots = (avg) => {
     const dots = [];
     for (let i = 1; i <= 5; i++) {
       const filled = i <= Math.round(avg);
       dots.push(
         <div key={i} style={{
-          width: 8, height: 8, borderRadius: '50%',
+          width: 6, height: 6, borderRadius: '50%',
           background: filled
             ? (avg >= 4 ? T.green : avg >= 3 ? T.gold : avg >= 2 ? T.amber : 'rgba(220,80,80,0.8)')
             : 'rgba(255,255,255,0.06)',
-          transition: 'background 0.2s',
         }} />
       );
     }
@@ -427,46 +428,37 @@ function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, s
 
   return (
     <div style={{ animation: 'fadeUp .4s ease both' }}>
-      {/* Header with rotation health */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Injection Sites</div>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: healthColor, boxShadow: '0 0 6px ' + healthColor }} />
-        </div>
-        <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{SITE_LIST.length - restCount} active</span>
-      </div>
-
       {/* Inline site log flow */}
       {siteLogStep && siteLogData && (
-        <div style={{ ...S.card, padding: '14px', marginBottom: 12, borderColor: T.goldM + '50' }}>
-          <div style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, marginBottom: 8 }}>
+        <div style={{ ...S.card, padding: '12px', marginBottom: 8, borderColor: T.goldM + '50' }}>
+          <div style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, marginBottom: 6 }}>
             Logging: {SITE_LIST.find(s => s.id === siteLogData.siteId)?.label || siteLogData.siteId}
           </div>
 
           {siteLogStep === 'compound' && (
             <div>
-              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Which compound?</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Compound</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {stack.map(c => (
-                  <button key={c.id} onClick={() => onSiteLogStepAction('selectCompound', c.name)} style={{ ...S.pill, fontSize: 10, padding: '5px 10px', borderColor: T.goldM, color: T.t1 }}>{c.name}</button>
+                  <button key={c.id} onClick={() => onSiteLogStepAction('selectCompound', c.name)} style={{ ...S.pill, fontSize: 9, padding: '4px 8px', borderColor: T.goldM, color: T.t1 }}>{c.name}</button>
                 ))}
-                <button onClick={() => onSiteLogStepAction('selectCompound', '')} style={{ ...S.pill, fontSize: 10, padding: '5px 10px', borderColor: T.border, color: T.t3 }}>Skip</button>
+                <button onClick={() => onSiteLogStepAction('selectCompound', '')} style={{ ...S.pill, fontSize: 9, padding: '4px 8px', borderColor: T.border, color: T.t3 }}>Skip</button>
               </div>
             </div>
           )}
 
           {siteLogStep === 'quality' && (
             <div>
-              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Tissue quality?</div>
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Tissue quality</div>
+              <div style={{ display: 'flex', gap: 3 }}>
                 {QUALITY_OPTIONS.map(q => (
                   <button key={q.value} onClick={() => onSiteLogStepAction('selectQuality', q.value)} style={{
-                    flex: 1, padding: '8px 2px', borderRadius: 8,
+                    flex: 1, padding: '6px 2px', borderRadius: 6,
                     background: 'rgba(255,255,255,0.03)', border: '1px solid ' + q.color,
                     color: q.color, fontSize: 9, fontFamily: T.fm, cursor: 'pointer',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                   }}>
-                    <span style={{ fontSize: 16 }}>{q.value}</span>
+                    <span style={{ fontSize: 14 }}>{q.value}</span>
                     <span>{q.label}</span>
                   </button>
                 ))}
@@ -476,8 +468,8 @@ function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, s
 
           {siteLogStep === 'notes' && (
             <div>
-              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Notes (optional)</div>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Notes (optional)</div>
+              <div style={{ display: 'flex', gap: 4 }}>
                 <input
                   type='text'
                   placeholder=''
@@ -485,41 +477,42 @@ function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, s
                   onChange={e => onSiteLogStepAction('updateNotes', e.target.value)}
                   style={{
                     flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border,
-                    borderRadius: 6, padding: '8px 10px', color: T.t1, fontSize: 12, fontFamily: T.fm,
+                    borderRadius: 6, padding: '6px 8px', color: T.t1, fontSize: 11, fontFamily: T.fm,
                     outline: 'none',
                   }}
                 />
-                <button onClick={() => onSiteLogStepAction('save')} style={{ ...S.logBtn, padding: '8px 16px' }}>Save</button>
+                <button onClick={() => onSiteLogStepAction('save')} style={{ ...S.logBtn, padding: '6px 14px', fontSize: 11 }}>Save</button>
               </div>
             </div>
           )}
 
-          <button onClick={() => onSiteLogStepAction('cancel')} style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Cancel</button>
+          <button onClick={() => onSiteLogStepAction('cancel')} style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Cancel</button>
         </div>
       )}
 
-      {/* Suggested site card */}
-      <div style={{ ...S.card, padding: '12px', marginBottom: 12, borderColor: T.goldM + '40' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.gold, fontFamily: T.fb }}>{suggested.label}</div>
-            <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 4 }}>
-              {suggestedAnalysis?.daysSinceLast != null ? suggestedAnalysis.daysSinceLast + 'd since last use' : 'Never used'}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {suggestedAnalysis && (
-              <span style={{
-                fontSize: 9, fontFamily: T.fm, padding: '3px 8px', borderRadius: 10,
-                background: suggestedAnalysis.color + '18', color: suggestedAnalysis.color, border: '1px solid ' + suggestedAnalysis.color + '30',
-              }}>{suggestedAnalysis.label}</span>
-            )}
-          </div>
+      {/* Suggested site -- compact gold-bordered line */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '6px 10px', marginBottom: 8,
+        border: '1px solid ' + T.goldM, borderRadius: 8,
+        background: T.goldS,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.gold, fontFamily: T.fb }}>{suggested.label}</span>
+          <span style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>
+            {suggestedAnalysis?.daysSinceLast != null ? suggestedAnalysis.daysSinceLast + 'd ago' : 'Never used'}
+          </span>
         </div>
+        {suggestedAnalysis && (
+          <span style={{
+            fontSize: 8, fontFamily: T.fm, padding: '2px 6px', borderRadius: 8,
+            background: suggestedAnalysis.color + '18', color: suggestedAnalysis.color,
+          }}>{suggestedAnalysis.label}</span>
+        )}
       </div>
 
       {/* Body map */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
         <BodyModel3D
           siteHistory={siteHistory}
           siteAnalysis={siteAnalysis}
@@ -531,101 +524,80 @@ function SitesView({ siteHistory, onLogSite, stack, siteAnalysis, siteLogStep, s
         />
       </div>
 
-      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Tap a site on the body map to log it</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16 }}>
+      {/* Site button grid -- compact pills, no instruction text */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 8 }}>
         {SITE_LIST.map(s => {
           const a = siteAnalysis ? siteAnalysis[s.id] : null;
           const bc = a ? a.color + '40' : T.border;
-          return <button key={s.id} onClick={() => onLogSite(s.id)} style={{ ...S.pill, fontSize: 10, padding: '4px 8px', borderColor: bc }}>{s.label}</button>;
+          return <button key={s.id} onClick={() => onLogSite(s.id)} style={{ ...S.pill, fontSize: 8, padding: '3px 6px', borderColor: bc, borderRadius: 6 }}>{s.label}</button>;
         })}
       </div>
 
-      {/* Site detail cards */}
-      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8, marginTop: 8 }}>All Sites</div>
+      {/* All Sites -- compact one-line rows */}
+      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>All Sites</div>
       {SITE_LIST.map(site => {
         const a = siteAnalysis ? siteAnalysis[site.id] : null;
         if (!a) return null;
-        const isExpanded = expandedSite === site.id;
         const isRest = a.status === 'rest';
-        const siteLogs = [...(siteHistory || [])].filter(s => s.siteId === site.id).sort((x, y) => y.date.localeCompare(x.date) || y.time.localeCompare(x.time)).slice(0, 10);
 
         return (
-          <div key={site.id} onClick={() => setExpandedSite(isExpanded ? null : site.id)} style={{
-            ...S.card, padding: '10px 12px', marginBottom: 6, cursor: 'pointer',
-            borderColor: isRest ? 'rgba(220,80,80,0.3)' : T.border,
-            ...(isRest ? { background: 'rgba(220,80,80,0.04)' } : {}),
+          <div key={site.id} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 10px', marginBottom: 3,
+            background: isRest ? 'rgba(220,80,80,0.04)' : T.card,
+            border: '1px solid ' + (isRest ? 'rgba(220,80,80,0.2)' : T.border),
+            borderRadius: 8,
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{site.label}</span>
-                <span style={{
-                  fontSize: 9, fontFamily: T.fm, padding: '2px 7px', borderRadius: 10,
-                  background: a.color + '18', color: a.color, border: '1px solid ' + a.color + '30',
-                }}>{a.label}</span>
-              </div>
-              <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{isExpanded ? '\u25B2' : '\u25BC'}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
-              <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>
-                {a.daysSinceLast != null ? a.daysSinceLast + 'd ago' : 'Never'}
-              </span>
-              <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{a.recentUses} in 14d</span>
-              <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>{renderQualityDots(a.avgQuality)}</div>
-              <span style={{ fontSize: 12, color: TREND_COLORS[a.qualityTrend], fontFamily: T.fm }}>{TREND_ARROWS[a.qualityTrend]}</span>
-            </div>
-
-            {isRest && (
-              <div style={{ fontSize: 10, color: 'rgba(220,80,80,0.8)', fontFamily: T.fm, marginTop: 6 }}>
-                {'\u26A0'} {a.message}
-                {a.daysSinceLast != null && a.daysSinceLast < 7 && (
-                  <span> ({7 - a.daysSinceLast}d rest remaining)</span>
-                )}
-              </div>
-            )}
-
-            {/* Expanded: last 10 logs */}
-            {isExpanded && (
-              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid ' + T.border }}>
-                <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Recent Logs</div>
-                {siteLogs.length === 0 ? (
-                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>No logs for this site</div>
-                ) : siteLogs.map((log, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                    <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{log.date}</span>
-                    <span style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>{log.time}</span>
-                    <div style={{ display: 'flex', gap: 2 }}>{renderQualityDots(log.tissueQuality || 3)}</div>
-                    {log.compound && <span style={{ fontSize: 9, color: T.gold, fontFamily: T.fm }}>{log.compound}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+            <span style={{ fontSize: 11, fontWeight: 600, color: T.t1, fontFamily: T.fb, minWidth: 90 }}>{site.label}</span>
+            <span style={{
+              fontSize: 8, fontFamily: T.fm, padding: '1px 5px', borderRadius: 6,
+              background: a.color + '18', color: a.color,
+            }}>{a.label}</span>
+            <div style={{ display: 'flex', gap: 1, alignItems: 'center' }}>{renderQualityDots(a.avgQuality)}</div>
+            <span style={{ fontSize: 11, color: TREND_COLORS[a.qualityTrend], fontFamily: T.fm }}>{TREND_ARROWS[a.qualityTrend]}</span>
+            <span style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+              {a.daysSinceLast != null ? a.daysSinceLast + 'd' : '--'}
+              {isRest && a.daysSinceLast != null && a.daysSinceLast < 7 ? ` (${7 - a.daysSinceLast}d rest)` : ''}
+            </span>
           </div>
         );
       })}
 
-      {/* 7-day rotation plan */}
-      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8, marginTop: 20 }}>7-Day Rotation Plan</div>
-      <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 8 }}>
-        {rotationPlan.map((day, i) => (
-          <div key={i} style={{
-            ...S.card, padding: '8px 10px', minWidth: 72, textAlign: 'center', flexShrink: 0,
-            borderColor: day.isToday ? T.goldM : T.border,
-            background: day.isToday ? T.goldS : 'transparent',
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: day.isToday ? T.gold : T.t2, fontFamily: T.fm, marginBottom: 4 }}>
-              {day.day}{day.isToday ? ' \u2022' : ''}
+      {/* 7-day rotation plan -- hidden behind toggle */}
+      <button
+        onClick={() => setShowRotation(v => !v)}
+        style={{
+          ...S.pill, fontSize: 9, padding: '4px 10px', marginTop: 8, marginBottom: 4,
+          borderColor: showRotation ? T.goldM : T.border,
+          color: showRotation ? T.gold : T.t3,
+        }}
+      >
+        {showRotation ? 'Hide rotation plan' : 'View rotation plan'}
+      </button>
+      {showRotation && (
+        <div style={{ display: 'flex', gap: 3, overflowX: 'auto', paddingBottom: 4, marginTop: 4 }}>
+          {rotationPlan.map((day, i) => (
+            <div key={i} style={{
+              padding: '6px 8px', minWidth: 64, textAlign: 'center', flexShrink: 0,
+              background: day.isToday ? T.goldS : T.card,
+              border: '1px solid ' + (day.isToday ? T.goldM : T.border),
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 600, color: day.isToday ? T.gold : T.t2, fontFamily: T.fm, marginBottom: 2 }}>
+                {day.day}{day.isToday ? ' \u2022' : ''}
+              </div>
+              {day.sites.map((s, j) => (
+                <div key={j} style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, marginTop: 1 }}>{s.label}</div>
+              ))}
             </div>
-            {day.sites.map((s, j) => (
-              <div key={j} style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{s.label}</div>
-            ))}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── Timeline helpers ─────────────────────────── */
+/* -- Timeline helpers ---------------------------------------- */
 function addDaysISO(iso, n) {
   const d = new Date(iso + 'T12:00:00');
   d.setDate(d.getDate() + n);
@@ -645,49 +617,36 @@ function getDayOfWeek(iso) {
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
 }
 
-/* ── TimelineView ─────────────────────────── */
+/* -- TimelineView ---------------------------------------- */
 function TimelineView({ logs, stack, checkins, profile }) {
   const safeLogs = logs || [];
   const safeCheckins = checkins || [];
   const [selectedDay, setSelectedDay] = useState(null);
-  const [viewMode, setViewMode] = useState('timeline'); // timeline | heatmap | schedule
+  const [viewMode, setViewMode] = useState('timeline');
   const scrollRef = useRef(null);
   const today = getToday();
 
-  // Build 90-day range centered on today (60 back, 30 forward)
   const timeRange = useMemo(() => {
     const start = addDaysISO(today, -60);
     const end = addDaysISO(today, 30);
     const days = [];
     let cur = start;
-    while (cur <= end) {
-      days.push(cur);
-      cur = addDaysISO(cur, 1);
-    }
+    while (cur <= end) { days.push(cur); cur = addDaysISO(cur, 1); }
     return { start, end, days };
   }, [today]);
 
-  // Build log index: date -> [logs]
   const logIndex = useMemo(() => {
     const idx = {};
-    safeLogs.forEach(l => {
-      if (!idx[l.date]) idx[l.date] = [];
-      idx[l.date].push(l);
-    });
+    safeLogs.forEach(l => { if (!idx[l.date]) idx[l.date] = []; idx[l.date].push(l); });
     return idx;
   }, [safeLogs]);
 
-  // Build checkin index: date -> checkin
   const checkinIndex = useMemo(() => {
     const idx = {};
-    safeCheckins.forEach(c => {
-      const d = typeof c.date === 'string' ? c.date.slice(0, 10) : '';
-      if (d) idx[d] = c;
-    });
+    safeCheckins.forEach(c => { const d = typeof c.date === 'string' ? c.date.slice(0, 10) : ''; if (d) idx[d] = c; });
     return idx;
   }, [safeCheckins]);
 
-  // Expected daily compounds
   const expectedDaily = useMemo(() => {
     return stack.filter(c => c.frequency === 'daily' || c.frequency === '2x_day' || c.frequency === '2x_week');
   }, [stack]);
@@ -696,23 +655,16 @@ function TimelineView({ logs, stack, checkins, profile }) {
     return stack.filter(c => c.frequency === 'weekly');
   }, [stack]);
 
-  // Adherence per day
   const adherenceMap = useMemo(() => {
     const map = {};
     timeRange.days.forEach(day => {
-      if (day > today) { map[day] = null; return; } // future
+      if (day > today) { map[day] = null; return; }
       const dayLogs = logIndex[day] || [];
       const loggedIds = new Set(dayLogs.map(l => l.cid));
-      // Daily compounds expected
       const dailyExpected = expectedDaily.filter(c => {
         if (c.frequency === 'weekly') return false;
-        if (c.frequency === '2x_week') {
-          // Rough: expect on 2 days per week, check if logged this week
-          return true;
-        }
         return true;
       });
-      // Weekly compounds - only expected on their typical day
       const dayOfWeek = new Date(day + 'T12:00:00').getDay();
       const weeklyExpected = dayOfWeek === 0 ? expectedWeekly : [];
       const allExpected = [...dailyExpected, ...weeklyExpected];
@@ -723,7 +675,6 @@ function TimelineView({ logs, stack, checkins, profile }) {
     return map;
   }, [timeRange.days, today, logIndex, expectedDaily, expectedWeekly]);
 
-  // Event markers (checkins, vial resets, milestones)
   const events = useMemo(() => {
     const evts = [];
     safeCheckins.forEach(c => {
@@ -732,12 +683,9 @@ function TimelineView({ logs, stack, checkins, profile }) {
         evts.push({ date: d, type: 'checkin', label: 'Body check-in', icon: '\u2606' });
       }
     });
-    // Detect first log per compound (start events)
     const firstLogByCompound = {};
     safeLogs.forEach(l => {
-      if (!firstLogByCompound[l.cid] || l.date < firstLogByCompound[l.cid]) {
-        firstLogByCompound[l.cid] = l.date;
-      }
+      if (!firstLogByCompound[l.cid] || l.date < firstLogByCompound[l.cid]) firstLogByCompound[l.cid] = l.date;
     });
     Object.entries(firstLogByCompound).forEach(([cid, date]) => {
       if (date >= timeRange.start && date <= timeRange.end) {
@@ -748,44 +696,31 @@ function TimelineView({ logs, stack, checkins, profile }) {
     return evts;
   }, [safeCheckins, safeLogs, stack, timeRange]);
 
-  // Event index
   const eventIndex = useMemo(() => {
     const idx = {};
-    events.forEach(e => {
-      if (!idx[e.date]) idx[e.date] = [];
-      idx[e.date].push(e);
-    });
+    events.forEach(e => { if (!idx[e.date]) idx[e.date] = []; idx[e.date].push(e); });
     return idx;
   }, [events]);
 
-  // Cycle tracker: weeks since profile.startDate
   const cycleWeek = useMemo(() => {
     if (!profile?.startDate) return null;
     const days = daysBetween(profile.startDate, today);
     return Math.floor(days / 7) + 1;
   }, [profile, today]);
 
-  // Scroll to today on mount
   useEffect(() => {
     if (scrollRef.current && viewMode === 'timeline') {
       const todayIdx = timeRange.days.indexOf(today);
-      if (todayIdx >= 0) {
-        const scrollPos = todayIdx * 44 - 150; // center-ish
-        scrollRef.current.scrollLeft = Math.max(0, scrollPos);
-      }
+      if (todayIdx >= 0) scrollRef.current.scrollLeft = Math.max(0, todayIdx * 44 - 150);
     }
   }, [viewMode]);
 
-  // 14-day schedule
   const scheduleRange = useMemo(() => {
     const days = [];
-    for (let i = 0; i < 14; i++) {
-      days.push(addDaysISO(today, i));
-    }
+    for (let i = 0; i < 14; i++) days.push(addDaysISO(today, i));
     return days;
   }, [today]);
 
-  // Get adherence color
   const adherenceColor = (val) => {
     if (val === null) return 'rgba(255,255,255,0.03)';
     if (val >= 1) return 'rgba(92,184,112,0.7)';
@@ -795,7 +730,6 @@ function TimelineView({ logs, stack, checkins, profile }) {
     return 'rgba(220,80,80,0.3)';
   };
 
-  // Streak calculation
   const streak = useMemo(() => {
     let count = 0;
     let d = today;
@@ -808,7 +742,6 @@ function TimelineView({ logs, stack, checkins, profile }) {
     return count;
   }, [adherenceMap, today]);
 
-  // Selected day detail
   const dayDetail = selectedDay ? {
     logs: logIndex[selectedDay] || [],
     checkin: checkinIndex[selectedDay],
@@ -818,33 +751,95 @@ function TimelineView({ logs, stack, checkins, profile }) {
 
   const DAY_W = 44;
 
+  // Compact day detail panel (shared between timeline and heatmap)
+  const renderDayDetail = () => {
+    if (!selectedDay || !dayDetail) return null;
+    return (
+      <div style={{
+        ...S.card, padding: '10px 12px', marginTop: 8, borderColor: T.goldM + '40',
+        animation: 'fadeUp .2s ease both',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: T.fd, fontSize: 14, fontWeight: 300, color: T.t1 }}>
+              {new Date(selectedDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </span>
+            {dayDetail.adherence !== null && (
+              <span style={{ fontSize: 9, color: adherenceColor(dayDetail.adherence), fontFamily: T.fm }}>
+                {Math.round((dayDetail.adherence || 0) * 100)}%
+              </span>
+            )}
+          </div>
+          <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', color: T.t3, cursor: 'pointer', fontSize: 12, fontFamily: T.fm }}>{'\u2715'}</button>
+        </div>
+        {/* Events */}
+        {dayDetail.events.length > 0 && dayDetail.events.map((e, i) => (
+          <div key={i} style={{ fontSize: 9, color: T.teal, fontFamily: T.fm, marginBottom: 2 }}>{e.icon} {e.label}</div>
+        ))}
+        {/* Logs */}
+        {dayDetail.logs.length > 0 ? dayDetail.logs.map((l, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: CAT_C[stack.find(c => c.id === l.cid)?.category] || T.gold }} />
+              <span style={{ fontSize: 11, color: T.t1, fontFamily: T.fb }}>{l.name}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 9, color: T.t2, fontFamily: T.fm }}>{l.doseLabel}</span>
+              <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>{l.time}</span>
+            </div>
+          </div>
+        )) : <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>No doses logged</div>}
+        {/* Missed */}
+        {selectedDay <= today && (() => {
+          const loggedIds = new Set(dayDetail.logs.map(l => l.cid));
+          const missed = stack.filter(c => {
+            if (c.frequency === 'weekly') return new Date(selectedDay + 'T12:00:00').getDay() === 0 && !loggedIds.has(c.id);
+            return (c.frequency === 'daily' || c.frequency === '2x_day') && !loggedIds.has(c.id);
+          });
+          if (missed.length === 0) return null;
+          return (
+            <div style={{ marginTop: 4 }}>
+              {missed.map(c => (
+                <span key={c.id} style={{ fontSize: 9, color: 'rgba(220,80,80,0.6)', fontFamily: T.fm, marginRight: 8 }}>{'\u2022'} {c.name}</span>
+              ))}
+            </div>
+          );
+        })()}
+        {/* Checkin */}
+        {dayDetail.checkin && (
+          <div style={{ display: 'flex', gap: 12, marginTop: 4, paddingTop: 4, borderTop: '1px solid ' + T.border }}>
+            {dayDetail.checkin.weight && <span style={{ fontSize: 10, fontFamily: T.fm }}><span style={{ color: T.t3 }}>Wt </span><span style={{ color: T.t1 }}>{dayDetail.checkin.weight}</span></span>}
+            {dayDetail.checkin.waist && <span style={{ fontSize: 10, fontFamily: T.fm }}><span style={{ color: T.t3 }}>Waist </span><span style={{ color: T.t1 }}>{dayDetail.checkin.waist}</span></span>}
+            {dayDetail.checkin.bf && <span style={{ fontSize: 10, fontFamily: T.fm }}><span style={{ color: T.t3 }}>BF </span><span style={{ color: T.t1 }}>{dayDetail.checkin.bf}</span></span>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ animation: 'fadeUp .4s ease both' }}>
       {/* Header row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div>
-          <p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2, letterSpacing: 1 }}>Protocol Timeline</p>
-          {cycleWeek && <p style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, marginTop: 2 }}>Week {cycleWeek}</p>}
+          <p style={{ fontFamily: T.fd, fontSize: 17, fontWeight: 300, color: T.t2, letterSpacing: 1, margin: 0 }}>Protocol Timeline</p>
+          {cycleWeek && <p style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, marginTop: 1, marginBottom: 0 }}>Week {cycleWeek}</p>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {streak > 0 && <span style={{ fontSize: 10, color: T.green, fontFamily: T.fm }}>{streak}d streak</span>}
-        </div>
+        {streak > 0 && <span style={{ fontSize: 9, color: T.green, fontFamily: T.fm }}>{streak}d streak</span>}
       </div>
 
-      {/* View toggle */}
-      <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: 3, marginBottom: 16, border: '1px solid ' + T.border }}>
+      {/* View toggle -- smaller, more elegant */}
+      <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: 2, marginBottom: 12, border: '1px solid ' + T.border }}>
         {[{ k: 'timeline', l: '90-Day' }, { k: 'heatmap', l: 'Heatmap' }, { k: 'schedule', l: '14-Day' }].map(v => (
-          <button key={v.k} onClick={() => setViewMode(v.k)} style={{ ...S.segBtn, flex: 1, fontSize: 10, padding: '6px 0', ...(viewMode === v.k ? S.segOn : {}) }}>{v.l}</button>
+          <button key={v.k} onClick={() => setViewMode(v.k)} style={{ ...S.segBtn, flex: 1, fontSize: 9, padding: '5px 0', borderRadius: 5, ...(viewMode === v.k ? S.segOn : {}) }}>{v.l}</button>
         ))}
       </div>
 
-      {/* ── 90-Day Timeline ─── */}
+      {/* 90-Day Timeline */}
       {viewMode === 'timeline' && (
         <div>
-          {/* Horizontal scroll container */}
-          <div ref={scrollRef} style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: 8, WebkitOverflowScrolling: 'touch' }}>
+          <div ref={scrollRef} style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: 4, WebkitOverflowScrolling: 'touch' }}>
             <div style={{ display: 'flex', minWidth: timeRange.days.length * DAY_W }}>
-              {/* Day columns */}
               {timeRange.days.map((day, i) => {
                 const isToday = day === today;
                 const isFuture = day > today;
@@ -857,62 +852,42 @@ function TimelineView({ logs, stack, checkins, profile }) {
 
                 return (
                   <div key={day} onClick={() => !isFuture && setSelectedDay(isSelected ? null : day)} style={{
-                    width: DAY_W, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                    padding: '4px 0', cursor: isFuture ? 'default' : 'pointer', position: 'relative',
+                    width: DAY_W, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    padding: '3px 0', cursor: isFuture ? 'default' : 'pointer', position: 'relative',
                     borderLeft: isMonthStart ? '1px solid ' + T.border : 'none',
                     background: isSelected ? 'rgba(201,168,76,0.06)' : isToday ? 'rgba(201,168,76,0.03)' : 'transparent',
                     borderRadius: isSelected ? 6 : 0,
                     opacity: isFuture ? 0.3 : 1,
                   }}>
-                    {/* Month label */}
                     {(i === 0 || isMonthStart) && (
-                      <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, position: 'absolute', top: -14, left: 2 }}>
+                      <div style={{ fontSize: 7, color: T.t3, fontFamily: T.fm, letterSpacing: 1, position: 'absolute', top: -12, left: 2 }}>
                         {new Date(day + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}
                       </div>
                     )}
-
-                    {/* Day number */}
                     <div style={{
                       fontSize: 9, fontFamily: T.fm, fontWeight: isToday ? 700 : 400,
                       color: isToday ? T.gold : isWeekend ? T.t3 : T.t2,
-                      width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       background: isToday ? T.goldS : 'transparent',
                       border: isToday ? '1px solid ' + T.goldM : 'none',
                     }}>
                       {new Date(day + 'T12:00:00').getDate()}
                     </div>
-
-                    {/* Compound dot grid */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minHeight: stack.length * 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: stack.length * 7 }}>
                       {stack.map(c => {
                         const logged = dayLogs.some(l => l.cid === c.id);
                         const catColor = CAT_C[c.category] || T.gold;
                         return (
                           <div key={c.id} style={{
-                            width: 6, height: 6, borderRadius: '50%',
+                            width: 5, height: 5, borderRadius: '50%',
                             background: logged ? catColor : isFuture ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
                             border: logged ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                            transition: 'background 0.2s',
                           }} />
                         );
                       })}
                     </div>
-
-                    {/* Event marker */}
-                    {dayEvents.length > 0 && (
-                      <div style={{ fontSize: 8, color: T.teal, lineHeight: 1 }}>
-                        {dayEvents[0].icon}
-                      </div>
-                    )}
-
-                    {/* Adherence bar */}
-                    <div style={{
-                      width: 28, height: 3, borderRadius: 1.5,
-                      background: adherenceColor(adh),
-                      marginTop: 2,
-                    }} />
-
-                    {/* Today marker line */}
+                    {dayEvents.length > 0 && <div style={{ fontSize: 7, color: T.teal, lineHeight: 1 }}>{dayEvents[0].icon}</div>}
+                    <div style={{ width: 24, height: 2, borderRadius: 1, background: adherenceColor(adh), marginTop: 1 }} />
                     {isToday && <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, background: T.goldM, zIndex: -1 }} />}
                   </div>
                 );
@@ -920,147 +895,51 @@ function TimelineView({ logs, stack, checkins, profile }) {
             </div>
           </div>
 
-          {/* Compound legend (fixed sidebar equivalent) */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12, marginBottom: 8 }}>
+          {/* Legend */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 4 }}>
             {stack.map(c => {
               const catColor = CAT_C[c.category] || T.gold;
               return (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: catColor }} />
-                  <span style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>{c.name}</span>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: catColor }} />
+                  <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>{c.name}</span>
                 </div>
               );
             })}
           </div>
 
-          {/* Day detail slide-up panel */}
-          {selectedDay && dayDetail && (
-            <div style={{
-              ...S.card, padding: '14px', marginTop: 8, borderColor: T.goldM + '40',
-              animation: 'fadeUp .2s ease both',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div>
-                  <span style={{ fontFamily: T.fd, fontSize: 16, fontWeight: 300, color: T.t1 }}>
-                    {new Date(selectedDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </span>
-                  {dayDetail.adherence !== null && (
-                    <span style={{ fontSize: 10, color: adherenceColor(dayDetail.adherence), fontFamily: T.fm, marginLeft: 8 }}>
-                      {Math.round((dayDetail.adherence || 0) * 100)}%
-                    </span>
-                  )}
-                </div>
-                <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', color: T.t3, cursor: 'pointer', fontSize: 14, fontFamily: T.fm }}>{'\u2715'}</button>
-              </div>
-
-              {/* Events */}
-              {dayDetail.events.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  {dayDetail.events.map((e, i) => (
-                    <div key={i} style={{ fontSize: 10, color: T.teal, fontFamily: T.fm, marginBottom: 2 }}>
-                      {e.icon} {e.label}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Logged compounds */}
-              {dayDetail.logs.length > 0 ? (
-                <div>
-                  <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>Logged</div>
-                  {dayDetail.logs.map((l, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: CAT_C[stack.find(c => c.id === l.cid)?.category] || T.gold }} />
-                        <span style={{ fontSize: 12, color: T.t1, fontFamily: T.fb }}>{l.name}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 10, color: T.t2, fontFamily: T.fm }}>{l.doseLabel}</span>
-                        <span style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>{l.time}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>No doses logged</div>
-              )}
-
-              {/* Missed compounds */}
-              {selectedDay <= today && (() => {
-                const loggedIds = new Set(dayDetail.logs.map(l => l.cid));
-                const missed = stack.filter(c => {
-                  if (c.frequency === 'weekly') {
-                    return new Date(selectedDay + 'T12:00:00').getDay() === 0 && !loggedIds.has(c.id);
-                  }
-                  return (c.frequency === 'daily' || c.frequency === '2x_day') && !loggedIds.has(c.id);
-                });
-                if (missed.length === 0) return null;
-                return (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(220,80,80,0.6)', fontFamily: T.fm, marginBottom: 4 }}>Missed</div>
-                    {missed.map(c => (
-                      <div key={c.id} style={{ fontSize: 11, color: 'rgba(220,80,80,0.6)', fontFamily: T.fm, padding: '2px 0' }}>
-                        {'\u2022'} {c.name}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-
-              {/* Checkin data */}
-              {dayDetail.checkin && (
-                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid ' + T.border }}>
-                  <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Body Check-in</div>
-                  <div style={{ display: 'flex', gap: 16 }}>
-                    {dayDetail.checkin.weight && <div><span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Weight </span><span style={{ fontSize: 12, color: T.t1, fontFamily: T.fm }}>{dayDetail.checkin.weight}</span></div>}
-                    {dayDetail.checkin.waist && <div><span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Waist </span><span style={{ fontSize: 12, color: T.t1, fontFamily: T.fm }}>{dayDetail.checkin.waist}</span></div>}
-                    {dayDetail.checkin.bf && <div><span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>BF </span><span style={{ fontSize: 12, color: T.t1, fontFamily: T.fm }}>{dayDetail.checkin.bf}</span></div>}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {renderDayDetail()}
         </div>
       )}
 
-      {/* ── Adherence Heatmap ─── */}
+      {/* Adherence Heatmap */}
       {viewMode === 'heatmap' && (
         <div>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>Last 90 Days Adherence</div>
-          {/* Heatmap grid: 7 rows (days of week) x ~13 columns (weeks) */}
           {(() => {
-            // Build weeks array going back 90 days
             const startDay = addDaysISO(today, -89);
             const startDow = new Date(startDay + 'T12:00:00').getDay();
-            // Pad to start on Sunday
             const gridStart = addDaysISO(startDay, -startDow);
             const weeks = [];
             let cur = gridStart;
             while (cur <= today) {
               const week = [];
-              for (let d = 0; d < 7; d++) {
-                week.push(cur);
-                cur = addDaysISO(cur, 1);
-              }
+              for (let d = 0; d < 7; d++) { week.push(cur); cur = addDaysISO(cur, 1); }
               weeks.push(week);
             }
             const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-            const cellSize = 12;
-            const gap = 3;
+            const cellSize = 11;
+            const gap = 2;
 
             return (
-              <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
+              <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
                 <div style={{ display: 'flex', gap }}>
-                  {/* Day-of-week labels */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap, marginRight: 4, paddingTop: cellSize + gap }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap, marginRight: 3, paddingTop: cellSize + gap }}>
                     {dayLabels.map((l, i) => (
-                      <div key={i} style={{ width: 12, height: cellSize, fontSize: 8, color: T.t3, fontFamily: T.fm, display: 'flex', alignItems: 'center' }}>{i % 2 === 1 ? l : ''}</div>
+                      <div key={i} style={{ width: 10, height: cellSize, fontSize: 7, color: T.t3, fontFamily: T.fm, display: 'flex', alignItems: 'center' }}>{i % 2 === 1 ? l : ''}</div>
                     ))}
                   </div>
-                  {/* Week columns */}
                   {weeks.map((week, wi) => (
                     <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap }}>
-                      {/* Month label on first week or new month */}
                       <div style={{ height: cellSize, fontSize: 7, color: T.t3, fontFamily: T.fm, display: 'flex', alignItems: 'center' }}>
                         {week[0].endsWith('-01') || (wi === 0 && week[0] <= today) ? new Date(week[0] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' }).toUpperCase().slice(0, 3) : ''}
                       </div>
@@ -1068,90 +947,67 @@ function TimelineView({ logs, stack, checkins, profile }) {
                         const adh = adherenceMap[day];
                         const inRange = day >= addDaysISO(today, -89) && day <= today;
                         return (
-                          <div key={di} onClick={() => inRange && setSelectedDay(selectedDay === day ? null : day)} title={day} style={{
+                          <div key={di} onClick={() => inRange && setSelectedDay(selectedDay === day ? null : day)} style={{
                             width: cellSize, height: cellSize, borderRadius: 2,
                             background: !inRange ? 'transparent' : adherenceColor(adh),
                             border: selectedDay === day ? '1px solid ' + T.gold : '1px solid rgba(255,255,255,0.03)',
                             cursor: inRange ? 'pointer' : 'default',
-                            transition: 'background 0.15s',
                           }} />
                         );
                       })}
                     </div>
                   ))}
                 </div>
-                {/* Legend */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                  <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>Less</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                  <span style={{ fontSize: 7, color: T.t3, fontFamily: T.fm }}>Less</span>
                   {[0, 0.25, 0.5, 0.75, 1].map((v, i) => (
-                    <div key={i} style={{ width: 10, height: 10, borderRadius: 2, background: adherenceColor(v) }} />
+                    <div key={i} style={{ width: 9, height: 9, borderRadius: 2, background: adherenceColor(v) }} />
                   ))}
-                  <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>More</span>
+                  <span style={{ fontSize: 7, color: T.t3, fontFamily: T.fm }}>More</span>
                 </div>
               </div>
             );
           })()}
 
           {/* Summary stats */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
             {[
-              { label: 'Current Streak', value: streak + 'd', color: T.green },
-              { label: '30-Day Avg', value: (() => {
+              { label: 'Streak', value: streak + 'd', color: T.green },
+              { label: '30-Day', value: (() => {
                 const last30 = timeRange.days.filter(d => d >= addDaysISO(today, -29) && d <= today);
                 const vals = last30.map(d => adherenceMap[d]).filter(v => v !== null && v !== undefined);
                 return vals.length > 0 ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 100) + '%' : '--';
               })(), color: T.gold },
-              { label: 'Perfect Days', value: (() => {
+              { label: 'Perfect', value: (() => {
                 const last30 = timeRange.days.filter(d => d >= addDaysISO(today, -29) && d <= today);
                 return last30.filter(d => adherenceMap[d] >= 1).length;
               })(), color: T.teal },
             ].map((s, i) => (
-              <div key={i} style={{ flex: 1, ...S.card, padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 300, color: s.color, fontFamily: T.fd }}>{s.value}</div>
-                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 4 }}>{s.label}</div>
+              <div key={i} style={{ flex: 1, ...S.card, padding: '8px', textAlign: 'center', marginBottom: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 300, color: s.color, fontFamily: T.fd }}>{s.value}</div>
+                <div style={{ fontSize: 7, letterSpacing: 1, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
           </div>
 
-          {/* Day detail (reused from timeline view) */}
-          {selectedDay && dayDetail && (
-            <div style={{
-              ...S.card, padding: '14px', marginTop: 12, borderColor: T.goldM + '40',
-              animation: 'fadeUp .2s ease both',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontFamily: T.fd, fontSize: 14, fontWeight: 300, color: T.t1 }}>
-                  {new Date(selectedDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                </span>
-                <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', color: T.t3, cursor: 'pointer', fontSize: 12, fontFamily: T.fm }}>{'\u2715'}</button>
-              </div>
-              {dayDetail.logs.length > 0 ? dayDetail.logs.map((l, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
-                  <span style={{ fontSize: 11, color: T.t1, fontFamily: T.fb }}>{l.name}</span>
-                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{l.time}</span>
-                </div>
-              )) : <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm }}>No doses logged</div>}
-            </div>
-          )}
+          {renderDayDetail()}
         </div>
       )}
 
-      {/* ── 14-Day Schedule ─── */}
+      {/* 14-Day Schedule */}
       {viewMode === 'schedule' && (
         <div>
-          <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 12 }}>Upcoming 14-Day Schedule</div>
           {scheduleRange.map((day, i) => {
             const isToday = day === today;
             const dayLogs = logIndex[day] || [];
             const loggedIds = new Set(dayLogs.map(l => l.cid));
             const dayOfWeek = new Date(day + 'T12:00:00').getDay();
 
-            // Determine which compounds are scheduled
             const scheduled = stack.filter(c => {
               if (c.frequency === 'daily' || c.frequency === '2x_day') return true;
-              if (c.frequency === 'weekly') return dayOfWeek === 0; // Sunday
-              if (c.frequency === '2x_week') return [1, 4].includes(dayOfWeek); // Mon, Thu
-              if (c.frequency === 'intermittent') return [1, 3, 5].includes(dayOfWeek); // MWF
+              if (c.frequency === 'weekly') return dayOfWeek === 0;
+              if (c.frequency === '2x_week') return [1, 4].includes(dayOfWeek);
+              if (c.frequency === 'intermittent') return [1, 3, 5].includes(dayOfWeek);
               return false;
             });
 
@@ -1160,36 +1016,33 @@ function TimelineView({ logs, stack, checkins, profile }) {
 
             return (
               <div key={day} style={{
-                ...S.card, padding: '10px 12px', marginBottom: 6,
+                ...S.card, padding: '8px 10px', marginBottom: 4,
                 borderColor: isToday ? T.goldM : allLogged ? 'rgba(92,184,112,0.15)' : T.border,
                 background: isToday ? T.goldS : allLogged ? 'rgba(92,184,112,0.03)' : 'transparent',
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: scheduled.length > 0 ? 8 : 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isToday ? T.gold : T.t1, fontFamily: T.fm }}>
-                      {getDayOfWeek(day)}
-                    </span>
-                    <span style={{ fontSize: 11, color: T.t2, fontFamily: T.fm }}>{fmtShortDate(day)}</span>
-                    {isToday && <span style={{ fontSize: 8, color: T.gold, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Today</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: scheduled.length > 0 ? 4 : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 500, color: isToday ? T.gold : T.t1, fontFamily: T.fm }}>{getDayOfWeek(day)}</span>
+                    <span style={{ fontSize: 10, color: T.t2, fontFamily: T.fm }}>{fmtShortDate(day)}</span>
+                    {isToday && <span style={{ fontSize: 7, color: T.gold, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Today</span>}
                   </div>
                   {isPast && scheduled.length > 0 && (
-                    <span style={{ fontSize: 10, color: allLogged ? T.green : 'rgba(220,80,80,0.6)', fontFamily: T.fm }}>
+                    <span style={{ fontSize: 9, color: allLogged ? T.green : 'rgba(220,80,80,0.6)', fontFamily: T.fm }}>
                       {allLogged ? '\u2713' : loggedIds.size + '/' + scheduled.length}
                     </span>
                   )}
                 </div>
                 {scheduled.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                     {scheduled.map(c => {
                       const logged = loggedIds.has(c.id);
                       const catColor = CAT_C[c.category] || T.gold;
                       return (
                         <span key={c.id} style={{
-                          fontSize: 9, fontFamily: T.fm, padding: '3px 8px', borderRadius: 10,
+                          fontSize: 8, fontFamily: T.fm, padding: '2px 6px', borderRadius: 8,
                           background: logged ? catColor + '20' : 'rgba(255,255,255,0.03)',
                           color: logged ? catColor : T.t3,
                           border: '1px solid ' + (logged ? catColor + '40' : 'rgba(255,255,255,0.06)'),
-                          textDecoration: logged ? 'none' : 'none',
                           opacity: isPast && !logged ? 0.5 : 1,
                         }}>
                           {logged && '\u2713 '}{c.name}
@@ -1198,9 +1051,7 @@ function TimelineView({ logs, stack, checkins, profile }) {
                     })}
                   </div>
                 )}
-                {scheduled.length === 0 && (
-                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Rest day</span>
-                )}
+                {scheduled.length === 0 && <span style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>Rest day</span>}
               </div>
             );
           })}
@@ -1209,22 +1060,21 @@ function TimelineView({ logs, stack, checkins, profile }) {
 
       {/* Cycle tracker footer */}
       {cycleWeek && profile?.startDate && (
-        <div style={{ ...S.card, padding: '10px 12px', marginTop: 16, borderColor: T.border }}>
+        <div style={{ ...S.card, padding: '8px 10px', marginTop: 8, borderColor: T.border }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Protocol Cycle</div>
-              <div style={{ fontSize: 14, fontWeight: 300, color: T.gold, fontFamily: T.fd, marginTop: 2 }}>Week {cycleWeek}</div>
+              <div style={{ fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Cycle</div>
+              <div style={{ fontSize: 13, fontWeight: 300, color: T.gold, fontFamily: T.fd, marginTop: 1 }}>Week {cycleWeek}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>Started {fmtShortDate(profile.startDate)}</div>
-              <div style={{ fontSize: 10, color: T.t2, fontFamily: T.fm }}>{daysBetween(profile.startDate, today)} days in</div>
+              <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>Started {fmtShortDate(profile.startDate)}</div>
+              <div style={{ fontSize: 9, color: T.t2, fontFamily: T.fm }}>{daysBetween(profile.startDate, today)}d in</div>
             </div>
           </div>
-          {/* Mini progress bar for current week */}
-          <div style={{ display: 'flex', gap: 2, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
             {[0, 1, 2, 3, 4, 5, 6].map(d => {
               const dayInWeek = new Date(today + 'T12:00:00').getDay();
-              return <div key={d} style={{ flex: 1, height: 3, borderRadius: 1.5, background: d <= dayInWeek ? T.gold : 'rgba(255,255,255,0.04)' }} />;
+              return <div key={d} style={{ flex: 1, height: 2, borderRadius: 1, background: d <= dayInWeek ? T.gold : 'rgba(255,255,255,0.04)' }} />;
             })}
           </div>
         </div>
@@ -1233,18 +1083,18 @@ function TimelineView({ logs, stack, checkins, profile }) {
   );
 }
 
-/* ── LogView (unchanged) ─────────────────────────── */
+/* -- LogView (unchanged) ---------------------------------------- */
 function LogView({ logs: rawLogs }) {
   const safe = rawLogs || [];
   const sorted = [...safe].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
   const grouped = sorted.reduce((a, l) => { (a[l.date] = a[l.date] || []).push(l); return a; }, {});
   if (!sorted.length) return <div style={{ textAlign: 'center', padding: '50px 0' }}><div style={{ fontSize: 28, opacity: 0.15, marginBottom: 8 }}>{'\u25CB'}</div><p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2 }}>The log is empty</p><p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 6 }}>Each dose you log writes a line in the story</p></div>;
   return (
-    <div style={{ animation: 'fadeUp .4s ease both' }}>{Object.entries(grouped).map(([date, entries]) => <div key={date} style={{ marginBottom: 20 }}><div style={S.logDate}>{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>{entries.map((e, i) => <div key={i} style={S.logRow}><span style={S.logName}>{e.name}</span><span style={S.logDose}>{e.doseLabel}{e.route ? ` \u00B7 ${ROUTE_LABELS[e.route] || e.route}` : ''}</span><span style={S.logTime}>{e.time}</span></div>)}</div>)}</div>
+    <div style={{ animation: 'fadeUp .4s ease both' }}>{Object.entries(grouped).map(([date, entries]) => <div key={date} style={{ marginBottom: 16 }}><div style={S.logDate}>{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>{entries.map((e, i) => <div key={i} style={S.logRow}><span style={S.logName}>{e.name}</span><span style={S.logDose}>{e.doseLabel}{e.route ? ` \u00B7 ${ROUTE_LABELS[e.route] || e.route}` : ''}</span><span style={S.logTime}>{e.time}</span></div>)}</div>)}</div>
   );
 }
 
-/* ── TrackTab root with multi-step site log flow ─────────────────────────── */
+/* -- TrackTab root ---------------------------------------- */
 export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile, onNavigate }) {
   const [sv, setSv] = useState('today');
   const [siteLogStep, setSiteLogStep] = useState(null);
@@ -1259,13 +1109,11 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
   }, [setLogs]);
   const handleNewVial = useCallback(id => { setVials(p => ({ ...p, [id]: { startDate: getToday(), reconDate: getToday() } })); }, [setVials]);
 
-  // Multi-step site log: initiate
   const handleLogSite = useCallback(siteId => {
     setSiteLogData({ siteId, compound: '', tissueQuality: 3, notes: '' });
     setSiteLogStep('compound');
   }, []);
 
-  // Multi-step site log: step actions
   const handleSiteLogStepAction = useCallback((action, value) => {
     if (action === 'cancel') {
       setSiteLogStep(null);
@@ -1303,8 +1151,8 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
 
   return (
     <div>
-      <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TRACK</h1><p style={S.sub}>Protocol Management</p></header>
-      <div style={S.segWrap}>{[{ k: 'today', l: 'Today' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
+      <header style={{ ...S.header, marginBottom: 8 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TRACK</h1><p style={S.sub}>Protocol Management</p></header>
+      <div style={{ ...S.segWrap, marginBottom: 12 }}>{[{ k: 'today', l: 'Today' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
       {sv === 'today' && <TodayView logs={logs} onLog={handleLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('BODY') : null} />}
       {sv === 'vials' && <VialsView vials={vials} logs={logs} onNewVial={handleNewVial} stack={stack} />}
       {sv === 'timeline' && <TimelineView logs={logs} stack={stack} checkins={checkins} profile={profile} />}

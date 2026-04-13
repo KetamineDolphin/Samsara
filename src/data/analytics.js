@@ -330,7 +330,7 @@ export function calculateTrajectory(checkins, targetWeight, targetWaist) {
  * @param {Array} stack - active compound stack
  * @returns {Promise<{summary: string, date: string}>}
  */
-export async function generateWeeklySummary(logs, checkins, stack) {
+export async function generateWeeklySummary(logs, checkins, stack, { subjective, labResults, profile, adherenceStats, siteHistory } = {}) {
   const fallback = { summary: '', date: todayISO() };
 
   try {
@@ -350,27 +350,54 @@ export async function generateWeeklySummary(logs, checkins, stack) {
       .slice(0, 2)
       .map((c) => ({
         date: c.date,
-        day: c.day,
         weight: c.weight,
         waist: c.waist,
-        analysis: c.analysis,
+        analysis: c.analysis ? { rateScore: c.analysis.rateScore, bodyFatEstimate: c.analysis.bodyFatEstimate } : null,
       }));
 
-    const compoundNames = (stack || []).map((c) => c.name);
+    const compoundNames = (stack || []).map((c) => c.name + ' (' + c.dose + ' ' + c.unit + ' ' + c.frequency + ')');
+
+    // Subjective trends (last 7 days)
+    const recentSubjective = (subjective || [])
+      .filter((s) => s.date >= cutoff)
+      .map((s) => ({ date: s.date, energy: s.energy, focus: s.focus, hunger: s.hunger, mood: s.mood }));
+
+    // Latest lab highlights
+    const latestLab = (labResults || [])
+      .filter((r) => r.parsedMarkers)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      [0];
+    const labSummary = latestLab ? { date: latestLab.date, markers: latestLab.parsedMarkers } : null;
+
+    // Adherence
+    const adherence = adherenceStats || null;
+
+    // Profile context
+    const goals = profile ? {
+      targetWeight: profile.targetWeight,
+      targetWaist: profile.targetWaist,
+      targetBodyFat: profile.targetBodyFat,
+      primaryGoal: profile.primaryGoal,
+    } : null;
 
     const systemPrompt =
-      'You are Samsara\'s AI coach. Analyze this week\'s protocol ' +
-      'adherence and body composition data. Return a 2-3 sentence ' +
-      'summary: what went well, what to watch, one actionable ' +
-      'recommendation. Be direct and data-driven, not generic.';
+      'You are Samsara\'s AI coach. Analyze this week\'s full protocol data — ' +
+      'injection adherence, body composition, subjective well-being trends, and lab markers. ' +
+      'Return a 3-4 sentence summary: what went well, what to watch, and one specific ' +
+      'actionable recommendation. Reference actual numbers from the data. ' +
+      'Be direct, specific, and data-driven — never generic platitudes.';
 
-    const userMessage =
-      'INJECTION LOGS (last 7 days):\n' +
-      JSON.stringify(recentLogs) +
-      '\n\nLATEST CHECK-INS:\n' +
-      JSON.stringify(recentCheckins) +
-      '\n\nACTIVE COMPOUNDS:\n' +
-      JSON.stringify(compoundNames);
+    const sections = [
+      'INJECTION LOGS (last 7 days):\n' + JSON.stringify(recentLogs),
+      '\n\nACTIVE PROTOCOL:\n' + JSON.stringify(compoundNames),
+    ];
+    if (recentCheckins.length > 0) sections.push('\n\nBODY CHECK-INS:\n' + JSON.stringify(recentCheckins));
+    if (recentSubjective.length > 0) sections.push('\n\nSUBJECTIVE TRENDS (last 7d):\n' + JSON.stringify(recentSubjective));
+    if (adherence) sections.push('\n\nADHERENCE:\n' + JSON.stringify({ overallPct: adherence.overallPct, currentStreak: adherence.currentStreak, longestStreak: adherence.longestStreak }));
+    if (labSummary) sections.push('\n\nLATEST LABS (' + labSummary.date + '):\n' + JSON.stringify(labSummary.markers));
+    if (goals) sections.push('\n\nUSER GOALS:\n' + JSON.stringify(goals));
+
+    const userMessage = sections.join('');
 
     const res = await fetch('/api/analyze', {
       method: 'POST',

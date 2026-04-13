@@ -10,11 +10,16 @@ import { CalcDisclaimer } from '../components/Disclaimers';
 function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
   const svgRef = useRef(null);
   const dragging = useRef(false);
+  const startY = useRef(null);
+  const startUnits = useRef(null);
+  const lastEmitted = useRef(null);
   const cl = Math.min(Math.max(u || 0, 0), max);
   const pct = cl / max;
   const bT = 36, bB = 248, bH = bB - bT;
   const fH = pct * bH, fY = bB - fH;
   const ins = fH >= 24, lY = ins ? fY + fH / 2 + 4.5 : fY - 8, lC = ins ? T.t1 : T.gold;
+  const DEAD_ZONE = 6; // px before drag engages
+  const SNAP = max <= 50 ? 1 : 2.5; // coarser snap: 1-unit for small, 2.5-unit for large
 
   const ticks = [];
   for (let i = 0; i <= 10; i++) {
@@ -31,53 +36,61 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
     if (!svgRef.current) return null;
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    // Convert screen Y to SVG viewBox coordinates
     const svgH = rect.height;
-    const scaleY = 300 / svgH; // viewBox is 300 tall
+    const scaleY = 300 / svgH;
     const svgY = (clientY - rect.top) * scaleY;
-    // Clamp to barrel range and convert to units
     const clamped = Math.min(Math.max(svgY, bT), bB);
     const unitsPct = 1 - (clamped - bT) / bH;
-    const units = Math.round(unitsPct * max * 2) / 2; // snap to 0.5 unit increments
+    const units = Math.round(unitsPct * max / SNAP) * SNAP;
     return Math.min(Math.max(units, 0), max);
-  }, [max, bT, bB, bH]);
+  }, [max, bT, bB, bH, SNAP]);
 
-  const handleInteraction = useCallback((clientY) => {
-    const units = yToUnits(clientY);
-    if (units !== null && onUnitsChange) {
+  const emitChange = useCallback((units) => {
+    if (units !== lastEmitted.current && onUnitsChange) {
+      lastEmitted.current = units;
       onUnitsChange(units);
     }
-  }, [yToUnits, onUnitsChange]);
+  }, [onUnitsChange]);
 
   const handleTouchStart = useCallback((e) => {
     e.preventDefault();
-    dragging.current = true;
-    handleInteraction(e.touches[0].clientY);
-  }, [handleInteraction]);
+    dragging.current = 'pending';
+    startY.current = e.touches[0].clientY;
+    startUnits.current = cl;
+  }, [cl]);
 
   const handleTouchMove = useCallback((e) => {
     if (!dragging.current) return;
     e.preventDefault();
-    handleInteraction(e.touches[0].clientY);
-  }, [handleInteraction]);
+    const dy = Math.abs(e.touches[0].clientY - startY.current);
+    if (dragging.current === 'pending' && dy < DEAD_ZONE) return;
+    dragging.current = true;
+    emitChange(yToUnits(e.touches[0].clientY));
+  }, [yToUnits, emitChange, DEAD_ZONE]);
 
   const handleTouchEnd = useCallback(() => {
     dragging.current = false;
+    startY.current = null;
   }, []);
 
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
-    dragging.current = true;
-    handleInteraction(e.clientY);
-  }, [handleInteraction]);
+    dragging.current = 'pending';
+    startY.current = e.clientY;
+    startUnits.current = cl;
+  }, [cl]);
 
   const handleMouseMove = useCallback((e) => {
     if (!dragging.current) return;
-    handleInteraction(e.clientY);
-  }, [handleInteraction]);
+    const dy = Math.abs(e.clientY - startY.current);
+    if (dragging.current === 'pending' && dy < DEAD_ZONE) return;
+    dragging.current = true;
+    emitChange(yToUnits(e.clientY));
+  }, [yToUnits, emitChange, DEAD_ZONE]);
 
   const handleMouseUp = useCallback(() => {
     dragging.current = false;
+    startY.current = null;
   }, []);
 
   useEffect(() => {
@@ -167,8 +180,11 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
 
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
-      <header style={S.header}><SamsaraSymbol size={56} detail="full" /><h1 style={S.brand}>SAMSARA</h1><p style={S.sub}>Peptide Calculator</p></header>
-      {presets.length > 0 && <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>}
+      <header style={{ ...S.header, marginBottom: 16 }}><SamsaraSymbol size={44} detail="full" /><h1 style={{ ...S.brand, marginTop: -2 }}>SAMSARA</h1><p style={{ ...S.sub, marginTop: 2 }}>Peptide Calculator</p></header>
+      {presets.length > 0 && <div style={{ marginBottom: 21 }}>
+        <div style={{ fontSize: 9, letterSpacing: 3, color: T.t3, fontFamily: T.fm, textTransform: 'uppercase', textAlign: 'center', marginBottom: 8 }}>Presets</div>
+        <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, padding: '9px 16px', ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>
+      </div>}
       {/* First-use guidance */}
       {presets.length === 0 && !vialMg && (
         <div style={{ ...S.card, padding: '14px 16px', marginBottom: 13, borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.04)' }}>
@@ -179,24 +195,28 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
       <div style={S.card}>
         <div style={S.field}><label style={S.label}>Vial Size</label><div style={S.frow}><input type="number" inputMode="decimal" value={vialMg} onChange={e => set("vialMg", e.target.value)} style={S.input} /><span style={S.tag}>mg</span></div></div>
         <div style={S.divider} />
-        <div style={S.field}><label style={S.label}>Bacteriostatic Water</label><div style={S.frow}><input type="number" inputMode="decimal" value={waterMl} onChange={e => { if (!waterLocked) set("waterMl", e.target.value) }} readOnly={waterLocked} style={{ ...S.input, ...(waterLocked ? { opacity: 0.4 } : {}) }} /><span style={S.tag}>ml</span><button onClick={() => setCs(p => ({ ...p, waterLocked: !p.waterLocked, waterMl: !p.waterLocked ? "2" : p.waterMl }))} style={{ ...S.lockBtn, ...(waterLocked ? S.lockOn : {}) }}>{waterLocked ? "\u25C6 2ml" : "\u25C7 Lock"}</button></div></div>
+        <div style={S.field}><label style={S.label}>Bacteriostatic Water</label><div style={S.frow}><input type="number" inputMode="decimal" value={waterMl} onChange={e => { if (!waterLocked) set("waterMl", e.target.value) }} readOnly={waterLocked} style={{ ...S.input, ...(waterLocked ? { opacity: 0.4 } : {}) }} /><span style={S.tag}>ml</span><button onClick={() => setCs(p => ({ ...p, waterLocked: !p.waterLocked, waterMl: !p.waterLocked ? "2" : p.waterMl }))} style={{ ...S.lockBtn, borderRadius: 21, padding: '7px 14px', fontSize: 11, letterSpacing: 1, ...(waterLocked ? { ...S.lockOn, boxShadow: '0 0 8px rgba(201,168,76,0.12)' } : {}) }}>{waterLocked ? "\u25C6 2ml" : "\u25C7 Lock"}</button></div></div>
         <div style={S.divider} />
         <div style={S.field}><label style={S.label}>Desired Dose</label><div style={S.frow}><input type="number" inputMode="decimal" value={doseMcg} onChange={e => set("doseMcg", e.target.value)} style={S.input} /><div style={S.togGrp}>{["mcg", "mg"].map(u => <button key={u} onClick={() => set("doseUnit", u)} style={{ ...S.togBtn, ...(doseUnit === u ? S.togOn : {}) }}>{u}</button>)}</div></div></div>
         <div style={S.divider} />
         <div style={S.field}><label style={S.label}>Frequency</label><div style={{ ...S.frow, gap: 6 }}>{Object.entries(FREQ_META).filter(([k]) => ["daily", "2x_week", "weekly"].includes(k)).map(([k, v]) => <button key={k} onClick={() => setCs(p => ({ ...p, freq: k }))} style={{ ...S.freqBtn, ...(freq === k ? S.freqOn : {}) }}>{v.label}</button>)}</div></div>
       </div>
-      {ok && <div ref={rr} style={{ ...S.resultCard, animation: "fadeUp .4s ease both" }}>
+      {ok && <div ref={rr} style={{ ...S.resultCard, borderTop: '1.5px solid rgba(201,168,76,0.3)', boxShadow: '0 -1px 12px rgba(201,168,76,0.06), 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)', animation: "fadeUp .4s ease both" }}>
         <div style={S.resRow}><span style={S.resLabel}>Concentration</span><span style={S.resGold}>{cn.toFixed(2)} mg/ml</span></div><div style={S.dividerGold} />
-        <div style={{ textAlign: "center", padding: "14px 0 6px" }}><span style={S.drawLabel}>Draw</span><span style={S.drawVal}>{un.toFixed(1)}<span style={S.drawUnit}> units</span></span><span style={S.drawSub}>({vol.toFixed(3)} ml on U-100 syringe)</span></div>
+        <div style={{ textAlign: "center", padding: "18px 0 8px" }}><span style={S.drawLabel}>Draw</span><span style={{ ...S.drawVal, fontSize: 48, letterSpacing: 1 }}>{un.toFixed(1)}<span style={{ ...S.drawUnit, fontSize: 18 }}> units</span></span><span style={S.drawSub}>({vol.toFixed(3)} ml on U-100 syringe)</span></div>
         <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
           <InteractiveSyringe u={un} onUnitsChange={handleSyringeChange} concentration={cn} />
         </div><div style={S.dividerGold} />
-        <div style={S.stats}><div style={S.stat}><span style={S.statV}>{dv.toFixed(0)}</span><span style={S.statL}>doses/vial</span></div><div style={S.stat}><span style={S.statV}>{Math.floor(ds)}</span><span style={S.statL}>days supply</span></div><div style={S.stat}><span style={S.statV}>{dMg.toFixed(dMg < 0.1 ? 3 : 2)}</span><span style={S.statL}>mg/dose</span></div></div>
-        {un > 100 && <div style={S.warning}>{"\u26A0"} Exceeds 100 units - verify inputs or split draws.</div>}
-        {un > 0 && un < 2 && <div style={S.infoBox}>{"\u2139"} Very small draw. Consider less BAC water.</div>}
+        <div style={{ display: 'flex', justifyContent: 'space-around', gap: 6, paddingTop: 8 }}>
+          <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{dv.toFixed(0)}</span><span style={S.statL}>doses/vial</span></div>
+          <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{Math.floor(ds)}</span><span style={S.statL}>days supply</span></div>
+          <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{dMg.toFixed(dMg < 0.1 ? 3 : 2)}</span><span style={S.statL}>mg/dose</span></div>
+        </div>
+        {un > 100 && <div style={{ ...S.warning, background: 'rgba(255,180,50,0.06)', borderColor: 'rgba(255,180,50,0.12)', fontSize: 12, color: 'rgba(255,200,100,0.6)' }}>{"\u26A0"} Exceeds 100 units - verify inputs or split draws.</div>}
+        {un > 0 && un < 2 && <div style={{ ...S.infoBox, fontSize: 12, color: 'rgba(201,168,76,0.5)' }}>{"\u2139"} Very small draw. Consider less BAC water.</div>}
         {onLogDose && activePreset && <button onClick={() => { onLogDose(activePreset); if (navigator.vibrate) navigator.vibrate(40); }} style={{ ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center', marginTop: 10 }}>Log This Dose {"\u2192"} Track</button>}
       </div>}
-      <CalcDisclaimer />
+      <div style={{ opacity: 0.5, marginTop: 4 }}><CalcDisclaimer /></div>
     </div>
   );
 }

@@ -4,63 +4,68 @@ import { BodyMap } from './Shared';
 
 const THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
 
-// Site positions tuned to match the body geometry below
+// Site positions using EXACT IDs from SITE_LIST in helpers.js
 const SITE_3D_POSITIONS = {
-  'abd-left':       { x: -0.15, y: 0.45, z: 0.28, label: 'Left Abdomen' },
-  'abd-right':      { x:  0.15, y: 0.45, z: 0.28, label: 'Right Abdomen' },
-  'abd-upper-left': { x: -0.10, y: 0.65, z: 0.30, label: 'Upper Left Abdomen' },
-  'abd-upper-right':{ x:  0.10, y: 0.65, z: 0.30, label: 'Upper Right Abdomen' },
-  'thigh-left':     { x: -0.18, y: -0.30, z: 0.14, label: 'Left Thigh' },
-  'thigh-right':    { x:  0.18, y: -0.30, z: 0.14, label: 'Right Thigh' },
-  'delt-left':      { x: -0.46, y: 1.15, z: 0.0, label: 'Left Delt' },
-  'delt-right':     { x:  0.46, y: 1.15, z: 0.0, label: 'Right Delt' },
-  'glute-left':     { x: -0.18, y: 0.12, z: -0.22, label: 'Left Glute' },
-  'glute-right':    { x:  0.18, y: 0.12, z: -0.22, label: 'Right Glute' },
-  'lat-left':       { x: -0.34, y: 0.85, z: -0.10, label: 'Left Lat' },
-  'lat-right':      { x:  0.34, y: 0.85, z: -0.10, label: 'Right Lat' },
-  'calf-left':      { x: -0.18, y: -0.88, z: 0.08, label: 'Left Calf' },
-  'calf-right':     { x:  0.18, y: -0.88, z: 0.08, label: 'Right Calf' },
+  'abdomen_left':        { x: -0.15, y: 0.45, z: 0.28, label: 'Left Abdomen' },
+  'abdomen_right':       { x:  0.15, y: 0.45, z: 0.28, label: 'Right Abdomen' },
+  'upper_abdomen_left':  { x: -0.10, y: 0.65, z: 0.30, label: 'Upper Left Abdomen' },
+  'upper_abdomen_right': { x:  0.10, y: 0.65, z: 0.30, label: 'Upper Right Abdomen' },
+  'thigh_left':          { x: -0.18, y: -0.30, z: 0.14, label: 'Left Thigh' },
+  'thigh_right':         { x:  0.18, y: -0.30, z: 0.14, label: 'Right Thigh' },
+  'delt_left':           { x: -0.46, y: 1.15, z: 0.0, label: 'Left Delt' },
+  'delt_right':          { x:  0.46, y: 1.15, z: 0.0, label: 'Right Delt' },
+  'glute_left':          { x: -0.18, y: 0.12, z: -0.22, label: 'Left Glute' },
+  'glute_right':         { x:  0.18, y: 0.12, z: -0.22, label: 'Right Glute' },
+  'love_handle_left':    { x: -0.32, y: 0.38, z: -0.08, label: 'Left Love Handle' },
+  'love_handle_right':   { x:  0.32, y: 0.38, z: -0.08, label: 'Right Love Handle' },
+  'lat_left':            { x: -0.34, y: 0.85, z: -0.10, label: 'Left Lat' },
+  'lat_right':           { x:  0.34, y: 0.85, z: -0.10, label: 'Right Lat' },
+  'calf_left':           { x: -0.18, y: -0.88, z: 0.08, label: 'Left Calf' },
+  'calf_right':          { x:  0.18, y: -0.88, z: 0.08, label: 'Right Calf' },
 };
 
-// Major nerves relevant to injection sites — paths defined as arrays of [x, y, z] points
+// Map body part mesh regions to nearby injection site IDs for skin glow
+const REGION_TO_SITES = {
+  'abdomen':      ['abdomen_left', 'abdomen_right', 'upper_abdomen_left', 'upper_abdomen_right'],
+  'thigh_left':   ['thigh_left'],
+  'thigh_right':  ['thigh_right'],
+  'delt_left':    ['delt_left'],
+  'delt_right':   ['delt_right'],
+  'glute':        ['glute_left', 'glute_right'],
+  'love_handle':  ['love_handle_left', 'love_handle_right'],
+  'lat_left':     ['lat_left'],
+  'lat_right':    ['lat_right'],
+  'calf_left':    ['calf_left'],
+  'calf_right':   ['calf_right'],
+  'pelvis':       ['love_handle_left', 'love_handle_right', 'glute_left', 'glute_right'],
+};
+
+// Major nerves relevant to injection sites
 const NERVE_PATHS = {
-  // Lateral femoral cutaneous — runs down outer thigh (avoid for thigh injections)
   'lat-fem-cut-L': { label: 'Lat. Femoral Cutaneous', side: 'front', points: [[-0.28, 0.18, 0.10], [-0.28, 0.02, 0.14], [-0.26, -0.18, 0.16], [-0.25, -0.42, 0.14]], color: 0xf0d060 },
   'lat-fem-cut-R': { label: 'Lat. Femoral Cutaneous', side: 'front', points: [[0.28, 0.18, 0.10], [0.28, 0.02, 0.14], [0.26, -0.18, 0.16], [0.25, -0.42, 0.14]], color: 0xf0d060 },
-  // Femoral nerve — medial thigh (avoid for thigh injections)
   'femoral-L': { label: 'Femoral N.', side: 'front', points: [[-0.12, 0.20, 0.14], [-0.12, 0.04, 0.18], [-0.10, -0.16, 0.18], [-0.10, -0.40, 0.16]], color: 0xf0d060 },
   'femoral-R': { label: 'Femoral N.', side: 'front', points: [[0.12, 0.20, 0.14], [0.12, 0.04, 0.18], [0.10, -0.16, 0.18], [0.10, -0.40, 0.16]], color: 0xf0d060 },
-  // Sciatic nerve — posterior thigh/glute (avoid for glute injections)
   'sciatic-L': { label: 'Sciatic N.', side: 'back', points: [[-0.14, 0.16, -0.22], [-0.15, 0.02, -0.20], [-0.16, -0.18, -0.16], [-0.16, -0.44, -0.12], [-0.16, -0.60, -0.08]], color: 0xf07040 },
   'sciatic-R': { label: 'Sciatic N.', side: 'back', points: [[0.14, 0.16, -0.22], [0.15, 0.02, -0.20], [0.16, -0.18, -0.16], [0.16, -0.44, -0.12], [0.16, -0.60, -0.08]], color: 0xf07040 },
-  // Axillary nerve — wraps around deltoid (avoid for delt injections)
   'axillary-L': { label: 'Axillary N.', side: 'front', points: [[-0.36, 1.24, -0.04], [-0.44, 1.16, 0.02], [-0.48, 1.06, 0.00], [-0.44, 0.96, -0.06]], color: 0xf0d060 },
   'axillary-R': { label: 'Axillary N.', side: 'front', points: [[0.36, 1.24, -0.04], [0.44, 1.16, 0.02], [0.48, 1.06, 0.00], [0.44, 0.96, -0.06]], color: 0xf0d060 },
-  // Radial nerve — lateral arm (nearby delt/lat sites)
   'radial-L': { label: 'Radial N.', side: 'back', points: [[-0.42, 1.10, -0.06], [-0.46, 0.92, -0.04], [-0.48, 0.74, -0.02], [-0.50, 0.56, 0.00]], color: 0xf0d060 },
   'radial-R': { label: 'Radial N.', side: 'back', points: [[0.42, 1.10, -0.06], [0.46, 0.92, -0.04], [0.48, 0.74, -0.02], [0.50, 0.56, 0.00]], color: 0xf0d060 },
-  // Superior gluteal nerve — upper glute (avoid for glute injections)
   'sup-glut-L': { label: 'Sup. Gluteal N.', side: 'back', points: [[-0.06, 0.22, -0.20], [-0.18, 0.24, -0.24], [-0.30, 0.22, -0.20]], color: 0xf07040 },
   'sup-glut-R': { label: 'Sup. Gluteal N.', side: 'back', points: [[0.06, 0.22, -0.20], [0.18, 0.24, -0.24], [0.30, 0.22, -0.20]], color: 0xf07040 },
-  // Sural nerve — posterior calf (avoid for calf injections)
   'sural-L': { label: 'Sural N.', side: 'back', points: [[-0.18, -0.54, -0.08], [-0.19, -0.72, -0.06], [-0.20, -0.90, -0.04], [-0.20, -1.02, -0.02]], color: 0xf0d060 },
   'sural-R': { label: 'Sural N.', side: 'back', points: [[0.18, -0.54, -0.08], [0.19, -0.72, -0.06], [0.20, -0.90, -0.04], [0.20, -1.02, -0.02]], color: 0xf0d060 },
-
-  // ──── ABDOMINAL NERVES (smaller, subcutaneous injection-relevant) ────
-  // Intercostal nerves T7-T12 — run laterally across abdomen (avoid hitting during subQ)
   'intercostal-T8-L': { label: 'T8 Intercostal', side: 'front', points: [[-0.34, 0.82, 0.18], [-0.26, 0.78, 0.26], [-0.16, 0.76, 0.28], [-0.06, 0.74, 0.28]], color: 0xe8c850 },
   'intercostal-T8-R': { label: 'T8 Intercostal', side: 'front', points: [[0.34, 0.82, 0.18], [0.26, 0.78, 0.26], [0.16, 0.76, 0.28], [0.06, 0.74, 0.28]], color: 0xe8c850 },
   'intercostal-T10-L': { label: 'T10 Intercostal', side: 'front', points: [[-0.30, 0.66, 0.22], [-0.22, 0.62, 0.28], [-0.14, 0.58, 0.30], [-0.04, 0.56, 0.30]], color: 0xe8c850 },
   'intercostal-T10-R': { label: 'T10 Intercostal', side: 'front', points: [[0.30, 0.66, 0.22], [0.22, 0.62, 0.28], [0.14, 0.58, 0.30], [0.04, 0.56, 0.30]], color: 0xe8c850 },
   'intercostal-T12-L': { label: 'Subcostal (T12)', side: 'front', points: [[-0.28, 0.52, 0.20], [-0.20, 0.48, 0.26], [-0.12, 0.44, 0.28], [-0.04, 0.42, 0.28]], color: 0xe8c850 },
   'intercostal-T12-R': { label: 'Subcostal (T12)', side: 'front', points: [[0.28, 0.52, 0.20], [0.20, 0.48, 0.26], [0.12, 0.44, 0.28], [0.04, 0.42, 0.28]], color: 0xe8c850 },
-  // Iliohypogastric nerve — lower abdomen, runs above inguinal ligament
   'iliohypo-L': { label: 'Iliohypogastric N.', side: 'front', points: [[-0.26, 0.34, 0.16], [-0.20, 0.32, 0.24], [-0.14, 0.30, 0.26], [-0.06, 0.28, 0.26]], color: 0xf09040 },
   'iliohypo-R': { label: 'Iliohypogastric N.', side: 'front', points: [[0.26, 0.34, 0.16], [0.20, 0.32, 0.24], [0.14, 0.30, 0.26], [0.06, 0.28, 0.26]], color: 0xf09040 },
-  // Ilioinguinal nerve — lower abdomen near groin crease
   'ilioinguinal-L': { label: 'Ilioinguinal N.', side: 'front', points: [[-0.24, 0.26, 0.14], [-0.18, 0.22, 0.22], [-0.12, 0.20, 0.24], [-0.06, 0.18, 0.24]], color: 0xf09040 },
   'ilioinguinal-R': { label: 'Ilioinguinal N.', side: 'front', points: [[0.24, 0.26, 0.14], [0.18, 0.22, 0.22], [0.12, 0.20, 0.24], [0.06, 0.18, 0.24]], color: 0xf09040 },
-  // Thoracodorsal nerve — posterior, lateral trunk near lat injection sites
   'thoracodorsal-L': { label: 'Thoracodorsal N.', side: 'back', points: [[-0.28, 1.04, -0.14], [-0.32, 0.90, -0.16], [-0.34, 0.76, -0.14], [-0.32, 0.62, -0.12]], color: 0xf0d060 },
   'thoracodorsal-R': { label: 'Thoracodorsal N.', side: 'back', points: [[0.28, 1.04, -0.14], [0.32, 0.90, -0.16], [0.34, 0.76, -0.14], [0.32, 0.62, -0.12]], color: 0xf0d060 },
 };
@@ -84,6 +89,28 @@ function getSiteOpacity(siteId, siteAnalysis, suggestedSite) {
   if (!data) return 0.35;
   if (data.status === 'overused' || data.status === 'rest') return 0.85;
   return 0.6;
+}
+
+// Determine the worst status among a set of site IDs from siteAnalysis
+function getRegionStatus(siteIds, siteAnalysis) {
+  if (!siteAnalysis) return null;
+  let worst = null;
+  const priority = { rest: 3, overused: 2, fresh: 1 };
+  for (const id of siteIds) {
+    const data = siteAnalysis[id];
+    if (!data || !data.status) continue;
+    const p = priority[data.status] || 0;
+    if (p > (priority[worst] || 0)) worst = data.status;
+  }
+  return worst;
+}
+
+// Emissive color and intensity for a given status
+function getStatusEmissive(status) {
+  if (status === 'rest') return { color: 0xdc5050, intensity: 0.12 };
+  if (status === 'overused') return { color: 0xffb432, intensity: 0.08 };
+  if (status === 'fresh') return { color: 0x00d2b4, intensity: 0.05 };
+  return { color: 0x000000, intensity: 0 };
 }
 
 function loadThree() {
@@ -183,11 +210,12 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
     const skinD = 0xb09880;
 
     const parts = [];
-    const add = (geo, mat, pos, rot, scl) => {
+    const add = (geo, mat, pos, rot, scl, region) => {
       const m = new THREE.Mesh(geo, mat);
       if (pos) m.position.set(pos[0], pos[1], pos[2]);
       if (rot) m.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
       if (scl) m.scale.set(scl[0], scl[1], scl[2]);
+      if (region) m.userData.region = region;
       bodyGroup.add(m);
       parts.push(m);
     };
@@ -202,24 +230,23 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
 
     // ──── TORSO - built from overlapping ellipsoids for smooth organic shape ────
     // Upper chest / shoulders
-    add(new THREE.SphereGeometry(0.38, S, S), mkMat(skin), [0, 1.12, 0], null, [1.05, 0.55, 0.58]);
+    add(new THREE.SphereGeometry(0.38, S, S), mkMat(skin), [0, 1.12, 0], null, [1.05, 0.55, 0.58], 'abdomen');
     // Mid chest
-    add(new THREE.SphereGeometry(0.34, S, S), mkMat(skin), [0, 0.92, 0], null, [1.0, 0.5, 0.56]);
+    add(new THREE.SphereGeometry(0.34, S, S), mkMat(skin), [0, 0.92, 0], null, [1.0, 0.5, 0.56], 'abdomen');
     // Core / abdomen
-    add(new THREE.SphereGeometry(0.30, S, S), mkMat(skin), [0, 0.68, 0], null, [0.96, 0.52, 0.54]);
+    add(new THREE.SphereGeometry(0.30, S, S), mkMat(skin), [0, 0.68, 0], null, [0.96, 0.52, 0.54], 'abdomen');
     // Lower abdomen
-    add(new THREE.SphereGeometry(0.28, S, S), mkMat(skin), [0, 0.48, 0], null, [0.94, 0.42, 0.52]);
+    add(new THREE.SphereGeometry(0.28, S, S), mkMat(skin), [0, 0.48, 0], null, [0.94, 0.42, 0.52], 'abdomen');
     // Pelvis - wide and flat, wraps around to hips
-    add(new THREE.SphereGeometry(0.30, S, S), mkMat(skin), [0, 0.28, 0], null, [1.0, 0.4, 0.52]);
+    add(new THREE.SphereGeometry(0.30, S, S), mkMat(skin), [0, 0.28, 0], null, [1.0, 0.4, 0.52], 'pelvis');
 
     // ──── SHOULDERS ────
-    add(new THREE.SphereGeometry(0.13, S, S), mkMat(skin), [-0.40, 1.18, 0], null, [1.0, 0.9, 0.85]);
-    add(new THREE.SphereGeometry(0.13, S, S), mkMat(skin), [ 0.40, 1.18, 0], null, [1.0, 0.9, 0.85]);
+    add(new THREE.SphereGeometry(0.13, S, S), mkMat(skin), [-0.40, 1.18, 0], null, [1.0, 0.9, 0.85], 'delt_left');
+    add(new THREE.SphereGeometry(0.13, S, S), mkMat(skin), [ 0.40, 1.18, 0], null, [1.0, 0.9, 0.85], 'delt_right');
 
     // ──── LEFT ARM ────
-    // Upper arm - tapered cylinder with sphere caps
-    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [-0.44, 1.12, 0]); // shoulder joint
-    add(new THREE.CylinderGeometry(0.09, 0.08, 0.48, C), mkMat(skin), [-0.46, 0.84, 0], [0, 0, 0.12]);
+    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [-0.44, 1.12, 0], null, null, 'delt_left'); // shoulder joint
+    add(new THREE.CylinderGeometry(0.09, 0.08, 0.48, C), mkMat(skin), [-0.46, 0.84, 0], [0, 0, 0.12], null, 'lat_left');
     add(new THREE.SphereGeometry(0.08, S, S), mkMat(skinD), [-0.48, 0.58, 0]); // elbow
     add(new THREE.CylinderGeometry(0.075, 0.06, 0.44, C), mkMat(skin), [-0.50, 0.33, 0], [0, 0, 0.08]);
     add(new THREE.SphereGeometry(0.06, S, S), mkMat(skinD), [-0.52, 0.08, 0]); // wrist
@@ -227,29 +254,29 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
     add(new THREE.SphereGeometry(0.06, S, S), mkMat(skinL), [-0.53, -0.02, 0], null, [0.65, 0.9, 0.45]);
 
     // ──── RIGHT ARM (mirror) ────
-    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [0.44, 1.12, 0]);
-    add(new THREE.CylinderGeometry(0.09, 0.08, 0.48, C), mkMat(skin), [0.46, 0.84, 0], [0, 0, -0.12]);
+    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [0.44, 1.12, 0], null, null, 'delt_right');
+    add(new THREE.CylinderGeometry(0.09, 0.08, 0.48, C), mkMat(skin), [0.46, 0.84, 0], [0, 0, -0.12], null, 'lat_right');
     add(new THREE.SphereGeometry(0.08, S, S), mkMat(skinD), [0.48, 0.58, 0]);
     add(new THREE.CylinderGeometry(0.075, 0.06, 0.44, C), mkMat(skin), [0.50, 0.33, 0], [0, 0, -0.08]);
     add(new THREE.SphereGeometry(0.06, S, S), mkMat(skinD), [0.52, 0.08, 0]);
     add(new THREE.SphereGeometry(0.06, S, S), mkMat(skinL), [0.53, -0.02, 0], null, [0.65, 0.9, 0.45]);
 
     // ──── LEFT LEG ────
-    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [-0.18, 0.08, 0]); // hip joint
+    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [-0.18, 0.08, 0], null, null, 'glute'); // hip joint
     // Upper thigh - thick tapered
-    add(new THREE.CylinderGeometry(0.13, 0.10, 0.52, C), mkMat(skin), [-0.18, -0.22, 0]);
+    add(new THREE.CylinderGeometry(0.13, 0.10, 0.52, C), mkMat(skin), [-0.18, -0.22, 0], null, null, 'thigh_left');
     add(new THREE.SphereGeometry(0.09, S, S), mkMat(skinD), [-0.18, -0.50, 0]); // knee
     // Shin
-    add(new THREE.CylinderGeometry(0.085, 0.065, 0.52, C), mkMat(skin), [-0.18, -0.78, 0]);
+    add(new THREE.CylinderGeometry(0.085, 0.065, 0.52, C), mkMat(skin), [-0.18, -0.78, 0], null, null, 'calf_left');
     add(new THREE.SphereGeometry(0.06, S, S), mkMat(skinD), [-0.18, -1.06, 0]); // ankle
     // Foot
     add(new THREE.SphereGeometry(0.07, S, S), mkMat(skin), [-0.18, -1.14, 0.04], null, [0.75, 0.45, 1.3]);
 
     // ──── RIGHT LEG (mirror) ────
-    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [0.18, 0.08, 0]);
-    add(new THREE.CylinderGeometry(0.13, 0.10, 0.52, C), mkMat(skin), [0.18, -0.22, 0]);
+    add(new THREE.SphereGeometry(0.10, S, S), mkMat(skinD), [0.18, 0.08, 0], null, null, 'glute');
+    add(new THREE.CylinderGeometry(0.13, 0.10, 0.52, C), mkMat(skin), [0.18, -0.22, 0], null, null, 'thigh_right');
     add(new THREE.SphereGeometry(0.09, S, S), mkMat(skinD), [0.18, -0.50, 0]);
-    add(new THREE.CylinderGeometry(0.085, 0.065, 0.52, C), mkMat(skin), [0.18, -0.78, 0]);
+    add(new THREE.CylinderGeometry(0.085, 0.065, 0.52, C), mkMat(skin), [0.18, -0.78, 0], null, null, 'calf_right');
     add(new THREE.SphereGeometry(0.06, S, S), mkMat(skinD), [0.18, -1.06, 0]);
     add(new THREE.SphereGeometry(0.07, S, S), mkMat(skin), [0.18, -1.14, 0.04], null, [0.75, 0.45, 1.3]);
 
@@ -276,7 +303,6 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
 
     const nerveLabelMeshes = [];
     Object.entries(NERVE_PATHS).forEach(([nerveId, nerve]) => {
-      // Create curve from points
       const curvePoints = nerve.points.map(p => new THREE.Vector3(p[0], p[1], p[2]));
       const curve = new THREE.CatmullRomCurve3(curvePoints);
       const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.012, 6, false);
@@ -287,7 +313,6 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
       const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
       nerveGroup.add(tubeMesh);
 
-      // Small sphere at each vertex for visibility
       nerve.points.forEach(p => {
         const dot = new THREE.Mesh(
           new THREE.SphereGeometry(0.018, 8, 6),
@@ -300,7 +325,6 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
         nerveGroup.add(dot);
       });
 
-      // Label anchor at midpoint
       const mid = nerve.points[Math.floor(nerve.points.length / 2)];
       nerveLabelMeshes.push({ id: nerveId, label: nerve.label, side: nerve.side, pos: mid, color: nerve.color });
     });
@@ -340,7 +364,7 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
     state.onZoomChange = (zoomed) => setIsZoomed(zoomed);
     sceneStateRef.current = state;
 
-    // ──── Render loop (no drag rotation, just front/back animation + glow) ────
+    // ──── Render loop ────
     const render = () => {
       state.animationId = requestAnimationFrame(render);
       const now = Date.now();
@@ -380,14 +404,13 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
 
     // ──── Interaction: tap to select + drag to rotate (limited) ────
     const canvasEl = canvas;
-    const MAX_DRAG_ANGLE = Math.PI / 4; // 45 degrees each way from base view
+    const MAX_DRAG_ANGLE = Math.PI / 4;
     let dragStartX = 0;
     let dragStartRotation = 0;
     let isDragging = false;
     let didDrag = false;
 
     const onPointerDown = (e) => {
-      // Only single-finger / left-click drag
       if (e.touches && e.touches.length > 1) return;
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       dragStartX = clientX;
@@ -402,16 +425,14 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
       const dx = clientX - dragStartX;
       if (Math.abs(dx) > 4) didDrag = true;
       if (!didDrag) return;
-      const baseAngle = state.viewBase || 0; // 0 for front, PI for back
+      const baseAngle = state.viewBase || 0;
       const rawAngle = dragStartRotation + dx * 0.006;
-      // Clamp to ±45° from current base view
       state.rotationY = Math.max(baseAngle - MAX_DRAG_ANGLE, Math.min(baseAngle + MAX_DRAG_ANGLE, rawAngle));
-      state.animating = false; // cancel any ongoing front/back animation
+      state.animating = false;
     };
     const onPointerUp = (e) => {
       isDragging = false;
       if (!didDrag) {
-        // It was a tap, not a drag — do site selection
         const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
         const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
         const rect = canvasEl.getBoundingClientRect();
@@ -426,7 +447,6 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
         }
       }
     };
-    // ──── Mouse: drag to rotate + click to select ────
     canvasEl.addEventListener('mousedown', onPointerDown);
     canvasEl.addEventListener('mousemove', onPointerMove);
     canvasEl.addEventListener('mouseup', onPointerUp);
@@ -445,7 +465,7 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
     let lastPinchDist = 0;
     const onUnifiedTouchStart = (e) => {
       if (e.touches.length === 2) {
-        isDragging = false; // cancel drag if second finger added
+        isDragging = false;
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastPinchDist = Math.sqrt(dx * dx + dy * dy);
@@ -532,10 +552,11 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
     return () => cancelAnimationFrame(id);
   }, [labelSiteId]);
 
-  // Update site colors
+  // Update site dot colors AND body skin emissive glow based on siteAnalysis
   useEffect(() => {
     const s = sceneStateRef.current;
     if (!s) return;
+    // Update site dot meshes
     s.siteMeshes.forEach(m => {
       const siteId = m.userData.siteId;
       const color = getSiteColor(siteId, siteAnalysis);
@@ -543,6 +564,18 @@ export default function BodyModel3D({ siteHistory, siteAnalysis, suggestedSite, 
       m.material.emissive.setHex(color);
       m.material.opacity = getSiteOpacity(siteId, siteAnalysis, suggestedSite);
       m.material.needsUpdate = true;
+    });
+    // Update body part skin emissive glow
+    s.parts.forEach(part => {
+      const region = part.userData.region;
+      if (!region) return;
+      const siteIds = REGION_TO_SITES[region];
+      if (!siteIds) return;
+      const worstStatus = getRegionStatus(siteIds, siteAnalysis);
+      const { color, intensity } = getStatusEmissive(worstStatus);
+      part.material.emissive.setHex(color);
+      part.material.emissiveIntensity = intensity;
+      part.material.needsUpdate = true;
     });
   }, [siteAnalysis, suggestedSite]);
 
@@ -727,15 +760,12 @@ function NerveLabels({ sceneStateRef, view }) {
       const s = sceneStateRef.current;
       if (s && s.THREE && s.nerveLabelMeshes) {
         const newPos = [];
-        // Deduplicate labels that share the same name on each side
         const seen = new Set();
         s.nerveLabelMeshes.forEach(n => {
-          // Show nerves relevant to current view
           const isFront = view === 'front';
           const nerveIsFront = n.side === 'front';
           if (isFront !== nerveIsFront) return;
 
-          // Deduplicate by label per side
           const key = n.label + n.side;
           if (seen.has(key)) return;
           seen.add(key);
@@ -745,7 +775,6 @@ function NerveLabels({ sceneStateRef, view }) {
           v.project(s.camera);
           const sx = ((v.x + 1) / 2) * s.width;
           const sy = ((-v.y + 1) / 2) * s.height;
-          // Only show if in front of camera
           if (v.z < 1) {
             newPos.push({ label: n.label, x: sx, y: sy, color: n.color });
           }

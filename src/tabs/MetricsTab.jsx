@@ -6,7 +6,7 @@ import S from '../utils/styles';
 import { getToday, parseBF, makeId } from '../utils/helpers';
 import { SamsaraSymbol, Enso } from '../components/Shared';
 import { parseLabText, extractLabDate, countParsedMarkers } from '../utils/labParser';
-// Pro gating removed — all features unlocked
+import { ProLock, ProBadge } from '../components/ProGate';
 
 Chart.register(...registerables);
 
@@ -453,7 +453,7 @@ function SubjectiveLineChart({ data, color, label, height = 160 }) {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, onUpgrade }) {
+export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, isPro, onUpgrade }) {
   const checkins = rawCheckins || [];
   const results = labResults || [];
   const sex = profile?.biologicalSex || 'male';
@@ -710,6 +710,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
             </div>
 
             {/* Weekly AI Summary */}
+            {isPro ? (
             <div style={{ ...S.card, padding: 14, marginBottom: 10, borderColor: T.goldM, background: 'rgba(201,168,76,0.03)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: weeklySummary ? 10 : 0 }}>
                 <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY</span>
@@ -738,6 +739,17 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
                 <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 6 }}>AI-powered weekly coaching based on your logs, check-ins, and protocol.</div>
               )}
             </div>
+            ) : (
+            <ProLock onUpgrade={onUpgrade} label="Weekly AI Summary">
+              <div style={{ ...S.card, padding: 14, marginBottom: 10, borderColor: T.goldM, background: 'rgba(201,168,76,0.03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY <ProBadge /></span>
+                  <span style={{ ...S.pill, fontSize: 9, padding: '3px 10px', borderColor: T.goldM, color: T.gold }}>Generate</span>
+                </div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 6 }}>AI-powered weekly coaching based on your logs, check-ins, and protocol.</div>
+              </div>
+            </ProLock>
+            )}
 
             {/* Dose timing suggestions based on subjective data */}
             {(() => {
@@ -778,6 +790,23 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
   // ── Labs view ──
   if (sv === 'labs') {
+    if (!isPro) {
+      return (
+        <div style={{ animation: 'fadeUp .5s ease both' }}>
+          <header style={{ ...S.header, marginBottom: 12 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results <ProBadge /></p></header>
+          {segBar}
+          <ProLock onUpgrade={onUpgrade} label="Lab Results">
+            <div style={{ textAlign: 'center', paddingTop: 40 }}>
+              <Enso size={48} />
+              <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1, lineHeight: 1.3, padding: '0 20px' }}>Your bloodwork tells the story your mirror cannot.</p>
+              <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 12, lineHeight: 1.6, padding: '0 30px' }}>Add lab results to see how your protocol is landing in the body{'\n'}and what your markers reveal.</p>
+              <button style={{ ...S.logBtn, marginTop: 24 }}>Add Lab Results</button>
+            </div>
+          </ProLock>
+        </div>
+      );
+    }
+
     const sortedResults = [...results].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const selected = sortedResults.find(r => r.id === selectedLabId);
 

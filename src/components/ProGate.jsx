@@ -94,13 +94,13 @@ const PRO_FEATURES = [
 ];
 
 /* ── PricingOptions: 3-tier pricing selector ─────────────────────────── */
-function PricingOptions() {
+function PricingOptions({ onPurchase }) {
   const [selected, setSelected] = useState('year');
+  const [purchasing, setPurchasing] = useState(false);
 
   const plans = [
     { key: 'month', label: 'Monthly', price: '$4.99', sub: '/month', note: null },
-    { key: 'year', label: 'Annual', price: '$29.99', sub: '/year', note: 'Save 50%', best: true },
-    { key: 'lifetime', label: 'Lifetime', price: '$49.99', sub: 'one time', note: 'Best value' },
+    { key: 'year', label: 'Annual', price: '$32.99', sub: '/year', note: 'Save 45%', best: true },
   ];
 
   return (
@@ -147,16 +147,22 @@ function PricingOptions() {
         })}
       </div>
 
-      <button onClick={() => {/* IAP will go here based on selected plan */}} style={{
+      <button onClick={async () => {
+        if (!onPurchase || purchasing) return;
+        setPurchasing(true);
+        try { await onPurchase(selected); } catch (e) { alert(e.message || 'Purchase failed'); }
+        setPurchasing(false);
+      }} disabled={purchasing} style={{
         ...S.logBtn, width: '100%', padding: '16px', textAlign: 'center',
         fontSize: 15, fontWeight: 700, letterSpacing: 0.5,
-        background: T.gold, color: T.bg, border: 'none', borderRadius: 10,
-      }}>{selected === 'lifetime' ? 'Purchase Lifetime' : 'Subscribe to Pro'}</button>
+        background: purchasing ? T.t3 : T.gold, color: T.bg, border: 'none', borderRadius: 10,
+        opacity: purchasing ? 0.6 : 1,
+      }}>{purchasing ? 'Processing...' : 'Subscribe to Pro'}</button>
     </div>
   );
 }
 
-export function UpgradeScreen({ onClose, onRestore }) {
+export function UpgradeScreen({ onClose, onRestore, onPurchase }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 500, background: T.bg,
@@ -212,7 +218,7 @@ export function UpgradeScreen({ onClose, onRestore }) {
         </div>
 
         {/* Pricing options — will be wired to Apple IAP */}
-        <PricingOptions />
+        <PricingOptions onPurchase={onPurchase} />
 
         <div style={{ height: 8 }} />
 

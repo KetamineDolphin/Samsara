@@ -10,7 +10,7 @@ import T from '../utils/tokens';
 import S from '../utils/styles';
 import { getToday, makeId } from '../utils/helpers';
 import { SamsaraSymbol, Enso } from '../components/Shared';
-// Pro gating removed — all features unlocked
+import { ProLock, ProBadge } from '../components/ProGate';
 import { AIDisclaimer } from '../components/Disclaimers';
 import { savePhoto, getPhotosForCheckin } from '../hooks/useStorage';
 import DexaScan from '../components/DexaScan';
@@ -483,7 +483,7 @@ function BodyFatChart({ checkins, height = 160 }) {
 export default function BodyTab({
   checkins: rawCheckins, setCheckins, stack: rawStack, logs: rawLogs,
   subjective: rawSubjective, setSubjective,
-  detectMilestones, calculateTrajectory, generateWeeklySummary, profile, onUpgrade
+  detectMilestones, calculateTrajectory, generateWeeklySummary, profile, onUpgrade, isPro
 }) {
   const checkins = rawCheckins || [];
   const stack = rawStack || [];
@@ -811,7 +811,7 @@ export default function BodyTab({
       {VIEWS.map(v => (
         <button key={v} onClick={() => { setActiveView(v); if (v === 'Check-in') setStep(1); }}
           style={{ ...S.segBtn, ...(activeView === v ? S.segOn : {}), whiteSpace: 'nowrap', minWidth: 0 }}
-        >{v}</button>
+        >{v}{v === 'Scan' && !isPro && <ProBadge />}</button>
       ))}
     </div>
   );
@@ -1038,6 +1038,17 @@ export default function BodyTab({
 
   const renderCheckin = () => {
     const photoCount = ['front', 'side', 'back', 'flex'].filter(k => photos[k]).length;
+    const FREE_CHECKIN_LIMIT = 3;
+    if (!isPro && checkins.length >= FREE_CHECKIN_LIMIT) {
+      return (
+        <ProLock onUpgrade={onUpgrade} label="Check-in Limit Reached">
+          <div style={{ animation: 'fadeUp .4s ease both', minHeight: 200, padding: 20 }}>
+            <h2 style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1 }}>New Check-in</h2>
+            <p style={{ fontFamily: T.fm, fontSize: 12, color: T.t3 }}>Free accounts are limited to {FREE_CHECKIN_LIMIT} check-ins. Upgrade to Pro for unlimited tracking.</p>
+          </div>
+        </ProLock>
+      );
+    }
     return (
       <div style={{ animation: 'fadeUp .4s ease both' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1545,7 +1556,10 @@ export default function BodyTab({
       {activeView === 'Check-in' && renderCheckin()}
       {activeView === 'Insights' && renderInsights()}
       {activeView === 'Compare' && renderCompare()}
-      {activeView === 'Scan' && <DexaScan checkins={checkins} setCheckins={setCheckins} stack={stack} profile={profile} />}
+      {activeView === 'Scan' && (isPro
+        ? <DexaScan checkins={checkins} setCheckins={setCheckins} stack={stack} profile={profile} />
+        : <ProLock onUpgrade={onUpgrade} label="AI Body Scan"><DexaScan checkins={checkins} setCheckins={setCheckins} stack={stack} profile={profile} /></ProLock>
+      )}
 
       {renderLightbox()}
     </div>

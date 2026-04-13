@@ -10,7 +10,7 @@ import { analyzeStack, getCompoundInsights } from '../data/interactions';
 import { calculateTrajectory } from '../data/analytics';
 import { isSupported, requestPermission } from '../utils/notifications';
 import CloudSync from '../components/CloudSync';
-// Pro gating removed — all features unlocked
+import { ProLock, ProBadge } from '../components/ProGate';
 import { AboutDisclaimer } from '../components/Disclaimers';
 
 // Pie chart category colors (explicit hex for SVG)
@@ -369,7 +369,7 @@ function calcCompoundCosts(c) {
   return { costPerDose, costPerDay, costPerWeek, costPerMonth, costPerYear, vialsPerMonth, doses, perWeek };
 }
 
-export default function ProfileTab({ stack, setStack, profile, setProfile, logs: rawLogs, checkins: rawCheckins, settings, setSettings, onUpgrade, focusCompoundId, clearFocusCompound }) {
+export default function ProfileTab({ stack, setStack, profile, setProfile, logs: rawLogs, checkins: rawCheckins, settings, setSettings, isPro, onUpgrade, focusCompoundId, clearFocusCompound }) {
   const logs = rawLogs || [];
   const checkins = rawCheckins || [];
 
@@ -843,7 +843,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>
-                  {profile.name || 'Samsara User'}
+                  {profile.name || 'Samsara User'}{isPro && <ProBadge />}
                 </div>
                 <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>
                   Day {daysSinceStart} {'\u00B7'} {profile.primaryGoal ? profile.primaryGoal.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Protocol Active'}
@@ -855,6 +855,13 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                 fontFamily: T.fm, letterSpacing: 0.5,
               }}>Edit</button>
             </div>
+
+            {!isPro && (
+              <button onClick={onUpgrade} style={{
+                ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center',
+                fontSize: 12, fontWeight: 600, marginBottom: 12, letterSpacing: 0.5,
+              }}>Upgrade to Pro</button>
+            )}
 
             {profile.targetWeight && (
               <div style={{ marginBottom: 12 }}>
@@ -1482,8 +1489,13 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           <button onClick={() => { if (window.confirm('Reset your profile? You will go through onboarding again.')) { setProfile(null); } }} style={{ ...S.newVialBtn, color: 'rgba(220,80,80,0.6)', borderColor: 'rgba(220,80,80,0.2)' }}>Reset Profile</button>
         </div>
 
-        <CloudSync />
+        {isPro ? <CloudSync /> : (
+          <ProLock onUpgrade={onUpgrade} label="Cloud Sync">
+            <CloudSync />
+          </ProLock>
+        )}
 
+        {isPro ? (
         <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Data Management</div>
           {/* Storage health bar */}
@@ -1536,6 +1548,17 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           {importStatus && <div style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, marginTop: 8 }}>{importStatus}</div>}
           <button onClick={async () => { if (window.confirm('Delete ALL Samsara data? This cannot be undone.')) { await clearAllData(); window.location.reload(); } }} style={{ ...S.newVialBtn, marginTop: 8, color: 'rgba(220,80,80,0.6)', borderColor: 'rgba(220,80,80,0.2)' }}>Clear All Data</button>
         </div>
+        ) : (
+          <ProLock onUpgrade={onUpgrade} label="Data Export & Backup">
+            <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Data Management</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button disabled style={{ ...S.logBtn, flex: 1, padding: '10px', textAlign: 'center', fontSize: 11 }}>Full Backup</button>
+                <button disabled style={{ ...S.newVialBtn, flex: 1, padding: '10px', textAlign: 'center' }}>Import Backup</button>
+              </div>
+            </div>
+          </ProLock>
+        )}
 
         <div style={{ marginBottom: 16 }}>
           <AboutDisclaimer />

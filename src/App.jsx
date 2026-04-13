@@ -18,6 +18,8 @@ import { detectMilestones, calculateTrajectory, generateWeeklySummary, getAdhere
 import { initNotifications, isSupported } from './utils/notifications';
 import { useAutoSync, getCurrentUserId, onAuthChange } from './hooks/useSync';
 import { isCloudConfigured } from './utils/supabase';
+import { useProStatus, canUseFeature } from './hooks/useProStatus';
+import { UpgradeScreen } from './components/ProGate';
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Libre+Franklin:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
@@ -97,9 +99,11 @@ export default function App() {
   // Auto-sync: pushes to Supabase when any synced data changes (debounced)
   useAutoSync(cloudUserId, [settings, stack, logs, vials, checkins, siteHistory, subjective, labResults, profile]);
 
+  // Pro subscription status
+  const { isPro, purchase, restore } = useProStatus(profile, setProfile);
+
   const tab = settings.tab || 'CALC';
   const setTab = (t) => setSettings(p => ({ ...p, tab: t }));
-  // Pro upgrade UI kept in codebase but not active
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [focusCompoundId, setFocusCompoundId] = useState(null);
@@ -156,12 +160,12 @@ export default function App() {
             <div key={tab} style={{ animation: 'tabFadeIn .25s ease both' }}>
               {tab === 'CALC' && <CalcTab cs={cs} setCs={setCs} stack={stack} profile={profile} />}
               {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} onNavigate={setTab} />}
-              {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} />}
-              {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} />}
-              {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} focusCompoundId={focusCompoundId} clearFocusCompound={() => setFocusCompoundId(null)} />}
+              {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
+              {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
+              {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} focusCompoundId={focusCompoundId} clearFocusCompound={() => setFocusCompoundId(null)} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
             </div>
           </div>
-          {/* UpgradeScreen available in ProGate.jsx when ready for IAP */}
+          {showUpgrade && <UpgradeScreen onClose={() => setShowUpgrade(false)} onRestore={async () => { const ok = await restore(); if (ok) setShowUpgrade(false); }} onPurchase={async (plan) => { const ok = await purchase(plan); if (ok) setShowUpgrade(false); }} />}
           {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} onNavigate={(t, compoundId) => { if (compoundId) setFocusCompoundId(compoundId); setTab(t); setShowSearch(false); }} logs={logs} checkins={checkins} stack={stack} labResults={labResults} />}
           <nav style={S.tabBar}>
             <button onClick={() => setShowSearch(true)} style={{ ...S.tabBtn, opacity: 0.6 }}>

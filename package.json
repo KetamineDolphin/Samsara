@@ -1,6 +1,6 @@
 {
   "name": "samsara",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,6 +14,7 @@
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
     "@capacitor/local-notifications": "^8.0.2",
+    "@supabase/supabase-js": "^2.103.0",
     "chart.js": "^4.4.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

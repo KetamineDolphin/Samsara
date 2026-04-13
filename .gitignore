@@ -6,6 +6,8 @@ dist/
 *.log
 .DS_Store
 .claude/
+ad-summary.*
+consumer-simulation*
 ios/App/Pods/
 ios/App/App/public/
 *.xcworkspace

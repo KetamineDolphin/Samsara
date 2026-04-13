@@ -16,6 +16,8 @@ import { DisclaimerGate } from './components/Disclaimers';
 import ErrorBoundary from './components/ErrorBoundary';
 import { detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, logSubjective, getSubjectiveChartData } from './data/analytics';
 import { initNotifications, isSupported } from './utils/notifications';
+import { useAutoSync, getCurrentUserId, onAuthChange } from './hooks/useSync';
+import { isCloudConfigured } from './utils/supabase';
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Libre+Franklin:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
@@ -36,6 +38,7 @@ input[type=text],input[type=file]{-webkit-appearance:none}
 @keyframes samsaraOuterPulse{0%,100%{opacity:0.08}50%{opacity:0.2}}
 @keyframes logPress{0%{transform:scale(1)}40%{transform:scale(0.94)}70%{transform:scale(1.04)}100%{transform:scale(1)}}
 @keyframes checkSpring{0%{transform:scale(0) rotate(-10deg)}50%{transform:scale(1.2) rotate(0deg)}100%{transform:scale(1) rotate(0deg)}}
+@keyframes tabFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 ::-webkit-scrollbar{display:none}
 `;
@@ -80,6 +83,19 @@ export default function App() {
     unitSystem: 'imperial',
     tier: 'free',
   });
+
+  // Cloud sync — track auth state and auto-push on data changes
+  const [cloudUserId, setCloudUserId] = useState(null);
+  useEffect(() => {
+    if (!isCloudConfigured()) return;
+    getCurrentUserId().then(id => { if (id) setCloudUserId(id); });
+    const unsub = onAuthChange((_event, session) => {
+      setCloudUserId(session?.user?.id || null);
+    });
+    return unsub;
+  }, []);
+  // Auto-sync: pushes to Supabase when any synced data changes (debounced)
+  useAutoSync(cloudUserId, [settings, stack, logs, vials, checkins, siteHistory, subjective, labResults, profile]);
 
   const tab = settings.tab || 'CALC';
   const setTab = (t) => setSettings(p => ({ ...p, tab: t }));
@@ -137,11 +153,13 @@ export default function App() {
       ) : (
         <div style={S.root}><div style={S.bgGlow} />
           <div ref={contentRef} style={S.content}>
-            {tab === 'CALC' && <CalcTab cs={cs} setCs={setCs} stack={stack} profile={profile} />}
-            {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} onNavigate={setTab} />}
-            {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} />}
-            {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} />}
-            {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} focusCompoundId={focusCompoundId} clearFocusCompound={() => setFocusCompoundId(null)} />}
+            <div key={tab} style={{ animation: 'tabFadeIn .25s ease both' }}>
+              {tab === 'CALC' && <CalcTab cs={cs} setCs={setCs} stack={stack} profile={profile} />}
+              {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} onNavigate={setTab} />}
+              {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} />}
+              {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} />}
+              {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} focusCompoundId={focusCompoundId} clearFocusCompound={() => setFocusCompoundId(null)} />}
+            </div>
           </div>
           {/* UpgradeScreen available in ProGate.jsx when ready for IAP */}
           {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} onNavigate={(t, compoundId) => { if (compoundId) setFocusCompoundId(compoundId); setTab(t); setShowSearch(false); }} logs={logs} checkins={checkins} stack={stack} labResults={labResults} />}

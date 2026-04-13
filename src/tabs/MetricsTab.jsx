@@ -459,6 +459,8 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
   const sex = profile?.biologicalSex || 'male';
 
   const [sv, setSv] = useState('charts');
+  const [weeklySummary, setWeeklySummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   // Labs state - all hooks top-level
   const [labView, setLabView] = useState('list');
@@ -706,6 +708,68 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
                 </div>
               ))}
             </div>
+
+            {/* Weekly AI Summary */}
+            <div style={{ ...S.card, padding: 14, marginBottom: 10, borderColor: T.goldM, background: 'rgba(201,168,76,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: weeklySummary ? 10 : 0 }}>
+                <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm }}>WEEKLY SUMMARY</span>
+                <button onClick={async () => {
+                  if (loadingSummary) return;
+                  setLoadingSummary(true);
+                  try {
+                    const result = await generateWeeklySummary(logs, checkins, stack);
+                    setWeeklySummary(result);
+                  } catch { setWeeklySummary({ summary: 'Could not generate summary. Check your connection.', date: new Date().toISOString() }); }
+                  setLoadingSummary(false);
+                }} disabled={loadingSummary} style={{ ...S.pill, fontSize: 9, padding: '3px 10px', borderColor: T.goldM, color: T.gold, opacity: loadingSummary ? 0.5 : 1 }}>
+                  {loadingSummary ? 'Analyzing...' : weeklySummary ? 'Refresh' : 'Generate'}
+                </button>
+              </div>
+              {loadingSummary && (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <Enso size={24} />
+                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 8 }}>Analyzing your week...</div>
+                </div>
+              )}
+              {weeklySummary && !loadingSummary && (
+                <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.7 }}>{weeklySummary.summary}</div>
+              )}
+              {!weeklySummary && !loadingSummary && (
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 6 }}>AI-powered weekly coaching based on your logs, check-ins, and protocol.</div>
+              )}
+            </div>
+
+            {/* Dose timing suggestions based on subjective data */}
+            {(() => {
+              const sub = Array.isArray(subjective) ? subjective.slice(-14) : [];
+              if (sub.length < 3) return null;
+              const suggestions = [];
+              const avgEnergy = sub.reduce((s, e) => s + (e.energy || 5), 0) / sub.length;
+              const avgSleep = sub.reduce((s, e) => s + (e.mood || 5), 0) / sub.length;
+              const avgHunger = sub.reduce((s, e) => s + (e.hunger || 5), 0) / sub.length;
+              // Check for GH secretagogues + poor sleep
+              const hasGHSS = stack.some(c => c.category === 'GH Secretagogue');
+              if (hasGHSS && avgSleep < 5) suggestions.push({ icon: '\uD83C\uDF19', text: 'Low mood/sleep scores detected. Try dosing GH secretagogues 30 min before bed on an empty stomach for better GH release.' });
+              // Low energy with stack
+              if (avgEnergy < 4.5) suggestions.push({ icon: '\u26A1', text: 'Energy is trending low. Consider timing stimulating peptides (like CJC-1295) to morning hours and ensure adequate recovery.' });
+              // High hunger with GLP-1
+              const hasGLP1 = stack.some(c => c.category === 'GLP-1 / Metabolic');
+              if (hasGLP1 && avgHunger > 6) suggestions.push({ icon: '\uD83C\uDF7D', text: 'Hunger scores remain high despite GLP-1 agonist. Consider gradual dose escalation per your protocol.' });
+              // Good adherence celebration
+              if (stats.overallPct >= 90 && avgEnergy >= 6) suggestions.push({ icon: '\u2728', text: 'Excellent adherence and strong subjective scores. Your protocol appears well-dialed.' });
+              if (suggestions.length === 0) return null;
+              return (
+                <div style={{ ...S.card, padding: 14, marginBottom: 10 }}>
+                  <span style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.teal, fontFamily: T.fm, display: 'block', marginBottom: 10 }}>SMART SUGGESTIONS</span>
+                  {suggestions.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < suggestions.length - 1 ? 10 : 0 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{s.icon}</span>
+                      <span style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>{s.text}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -1170,6 +1234,41 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
             <LineChartVis data={bfData} color="rgba(150,120,220,0.8)" />
           </ChartCard>}
           <ChartCard title="Adherence - Last 30 Days" height={120}><AdherenceHeatmap logs={logs} stack={stack} /></ChartCard>
+
+          {/* Lab biomarker timeline overlay */}
+          {(() => {
+            if (!results || results.length < 2) return null;
+            const sortedResults = [...results].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            // Find markers with 2+ data points
+            const markerCounts = {};
+            sortedResults.forEach(r => {
+              if (!r.parsedMarkers) return;
+              Object.keys(r.parsedMarkers).forEach(k => {
+                if (r.parsedMarkers[k] != null && !isNaN(Number(r.parsedMarkers[k]))) {
+                  markerCounts[k] = (markerCounts[k] || 0) + 1;
+                }
+              });
+            });
+            const trendKeys = Object.keys(markerCounts).filter(k => markerCounts[k] >= 2).slice(0, 4);
+            if (trendKeys.length === 0) return null;
+            return (
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 10, marginTop: 10 }}>BIOMARKER TRENDS</div>
+                {trendKeys.map(k => {
+                  const points = sortedResults.filter(r => r.parsedMarkers && r.parsedMarkers[k] != null).map(r => ({ label: r.date.slice(5), value: Number(r.parsedMarkers[k]) }));
+                  const last = points[points.length - 1].value;
+                  const ref = REFERENCE_RANGES[k]?.[sex] || REFERENCE_RANGES[k]?.both;
+                  const unit = ref ? ref.unit : '';
+                  const inRange = ref ? (last >= ref.low && last <= ref.high) : true;
+                  return (
+                    <ChartCard key={k} title={MARKER_LABELS[k] || k} rightLabel={`${last}${unit ? ' ' + unit : ''}`} height={140}>
+                      <LineChartVis data={points} color={inRange ? 'rgba(0,210,180,0.8)' : 'rgba(220,80,80,0.8)'} height={140} />
+                    </ChartCard>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>}
     </div>
   );

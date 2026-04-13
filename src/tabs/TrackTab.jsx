@@ -9,6 +9,7 @@ import { BodyMap } from '../components/Shared';
 import BodyModel3D from '../components/BodyModel3D';
 import LIB from '../data/library';
 import { analyzeStack } from '../data/interactions';
+import { getAdherenceStats } from '../data/analytics';
 
 /* ── Tissue quality analysis ─────────────────────────── */
 function analyzeSites(siteHistory) {
@@ -113,7 +114,25 @@ const ROUTE_ICONS = { subq: '\uD83D\uDC89', im: '\uD83D\uDC89', oral: '\uD83D\uD
 
 function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheckin }) {
   const t = getToday();
-  const [routePickerId, setRoutePickerId] = useState(null); // compound id showing route picker
+  const [routePickerId, setRoutePickerId] = useState(null);
+  const [now, setNow] = useState(Date.now());
+  // Refresh timers every 60s
+  useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
+  // Streak + adherence
+  const adherence = useMemo(() => getAdherenceStats(logs, stack, 90), [logs, stack]);
+  // Half-life helper: time since last dose for each compound
+  const lastDoseMap = useMemo(() => {
+    const map = {};
+    stack.forEach(c => {
+      const cLogs = logs.filter(l => l.cid === c.id).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+      if (cLogs.length > 0) {
+        const last = cLogs[0];
+        const dt = new Date(last.date + 'T' + (last.time || '12:00') + ':00');
+        if (!isNaN(dt.getTime())) map[c.id] = dt.getTime();
+      }
+    });
+    return map;
+  }, [logs, stack, now]);
   const groups = {};
   TIMING_GROUPS.forEach(g => { groups[g.id] = []; });
   stack.forEach(c => {
@@ -184,6 +203,24 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
         </div>
       </div>
 
+      {/* Streak banner */}
+      {adherence.currentStreak > 0 && (
+        <div style={{ ...S.card, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderColor: adherence.currentStreak >= 7 ? 'rgba(201,168,76,0.25)' : 'rgba(92,184,112,0.15)', background: adherence.currentStreak >= 7 ? 'rgba(201,168,76,0.04)' : 'rgba(92,184,112,0.03)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>{adherence.currentStreak >= 30 ? '\uD83D\uDD25' : adherence.currentStreak >= 7 ? '\uD83D\uDD25' : '\u2B50'}</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.t1, fontFamily: T.fb }}>{adherence.currentStreak} day streak</div>
+              <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{adherence.overallPct}% adherence {'\u00B7'} Best: {adherence.longestStreak}d</div>
+            </div>
+          </div>
+          {adherence.currentStreak >= 7 && (
+            <div style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
+              {adherence.currentStreak >= 30 ? 'Legendary' : adherence.currentStreak >= 14 ? 'On Fire' : 'Consistent'}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Empty state for first-time users */}
       {stack.length === 0 && (
         <div style={{ ...S.card, padding: '20px 16px', textAlign: 'center', marginBottom: 16 }}>
@@ -217,12 +254,28 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
               const routes = libEntry.administrationOptions || [];
               const hasMultiRoute = routes.length > 1;
               const showingRoutes = routePickerId === c.id;
+              const halfLife = libEntry.halfLifeHours || 0;
+              const lastDoseTs = lastDoseMap[c.id];
+              const hoursSince = lastDoseTs ? (now - lastDoseTs) / 3600000 : null;
+              // Status: active (< 1 half-life), clearing (1-2), cleared (>2)
+              const doseStatus = hoursSince != null && halfLife > 0
+                ? hoursSince < halfLife ? 'active' : hoursSince < halfLife * 2 ? 'clearing' : 'cleared'
+                : null;
+              const peakMin = libEntry.peakPlasmaMinutes || 0;
+              const minSince = hoursSince != null ? hoursSince * 60 : null;
+              const isPeaking = peakMin > 0 && minSince != null && minSince < peakMin * 1.5 && minSince > 0 && logged;
               return (
                 <div key={c.id}>
                   <div style={{ ...S.trackRow, ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.trackName}>{c.name}</div>
-                      <div style={S.trackMeta}>{fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u{logged && logged.route ? ` \u00B7 ${ROUTE_LABELS[logged.route] || logged.route}` : ''}</div>
+                      <div style={S.trackMeta}>
+                        {fmtDose(c)} {'\u00B7'} {unitsOf(c).toFixed(1)}u
+                        {logged && logged.route ? ` \u00B7 ${ROUTE_LABELS[logged.route] || logged.route}` : ''}
+                        {logged && isPeaking && <span style={{ color: T.teal }}> {'\u00B7'} peaking</span>}
+                        {logged && doseStatus === 'active' && !isPeaking && <span style={{ color: '#5cb870' }}> {'\u00B7'} active</span>}
+                        {!logged && hoursSince != null && <span style={{ color: doseStatus === 'cleared' ? T.t3 : T.amber }}> {'\u00B7'} {hoursSince < 1 ? Math.round(hoursSince * 60) + 'm ago' : hoursSince < 24 ? Math.round(hoursSince) + 'h ago' : Math.round(hoursSince / 24) + 'd ago'}</span>}
+                      </div>
                     </div>
                     {logged ? (
                       <div style={S.loggedBadge}>

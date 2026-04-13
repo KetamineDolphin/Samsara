@@ -9,6 +9,7 @@ import { exportAllData, importAllData, clearAllData, getStorageSize, getPhotoSto
 import { analyzeStack, getCompoundInsights } from '../data/interactions';
 import { calculateTrajectory } from '../data/analytics';
 import { isSupported, requestPermission } from '../utils/notifications';
+import CloudSync from '../components/CloudSync';
 // Pro gating removed — all features unlocked
 import { AboutDisclaimer } from '../components/Disclaimers';
 
@@ -1480,6 +1481,8 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           </div>
           <button onClick={() => { if (window.confirm('Reset your profile? You will go through onboarding again.')) { setProfile(null); } }} style={{ ...S.newVialBtn, color: 'rgba(220,80,80,0.6)', borderColor: 'rgba(220,80,80,0.2)' }}>Reset Profile</button>
         </div>
+
+        <CloudSync />
 
         <div style={{ ...S.card, padding: '14px', marginBottom: 12 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>Data Management</div>

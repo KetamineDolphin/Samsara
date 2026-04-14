@@ -41,6 +41,8 @@ input[type=text],input[type=file]{-webkit-appearance:none}
 @keyframes logPress{0%{transform:scale(1)}40%{transform:scale(0.94)}70%{transform:scale(1.04)}100%{transform:scale(1)}}
 @keyframes checkSpring{0%{transform:scale(0) rotate(-10deg)}50%{transform:scale(1.2) rotate(0deg)}100%{transform:scale(1) rotate(0deg)}}
 @keyframes tabFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 rgba(201,168,76,0)}50%{box-shadow:0 0 12px 2px rgba(201,168,76,0.15)}}
+@keyframes scanSweep{0%{top:0%;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 ::-webkit-scrollbar{display:none}
 `;

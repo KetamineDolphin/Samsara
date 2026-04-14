@@ -15,7 +15,7 @@ import { SamsaraSymbol, Enso } from './Shared';
    DEXA ANALYSIS PROMPT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const DEXA_PROMPT = `You are Samsara's AI Body Scan engine — a clinical-grade body composition estimator. You analyze physique photos with the precision of a DEXA scan, producing regional body fat estimates and lean mass assessments.
+const DEXA_PROMPT = `You are Samsara's AI Body Scan engine — a clinical-grade body composition estimator. You analyze physique photos with the precision of a DEXA scan, producing regional body fat estimates, lean mass assessments, and derived clinical metrics.
 
 Analyze the uploaded photo(s) and return ONLY a valid JSON object. No markdown, no backticks, no explanation — raw JSON only.
 
@@ -26,18 +26,22 @@ Required JSON schema:
   "totalFatMassLbs": 34,
   "boneMineralPct": 3.2,
   "regions": {
-    "leftArm": { "fatPct": 14.2, "leanLbs": 9.8, "rating": "lean" },
-    "rightArm": { "fatPct": 14.0, "leanLbs": 10.1, "rating": "lean" },
-    "chest": { "fatPct": 15.5, "leanLbs": 12.3, "rating": "lean" },
-    "upperAbs": { "fatPct": 18.0, "leanLbs": 8.4, "rating": "moderate" },
-    "lowerAbs": { "fatPct": 24.5, "leanLbs": 6.2, "rating": "elevated" },
-    "obliques": { "fatPct": 22.0, "leanLbs": 5.8, "rating": "moderate" },
-    "upperBack": { "fatPct": 14.8, "leanLbs": 14.5, "rating": "lean" },
-    "lowerBack": { "fatPct": 20.0, "leanLbs": 7.2, "rating": "moderate" },
-    "glutes": { "fatPct": 20.5, "leanLbs": 11.0, "rating": "moderate" },
-    "leftLeg": { "fatPct": 17.8, "leanLbs": 22.5, "rating": "lean" },
-    "rightLeg": { "fatPct": 17.5, "leanLbs": 23.0, "rating": "lean" }
+    "leftArm": { "fatPct": 14.2, "leanLbs": 9.8, "rating": "lean", "confidence": "high" },
+    "rightArm": { "fatPct": 14.0, "leanLbs": 10.1, "rating": "lean", "confidence": "high" },
+    "chest": { "fatPct": 15.5, "leanLbs": 12.3, "rating": "lean", "confidence": "high" },
+    "upperAbs": { "fatPct": 18.0, "leanLbs": 8.4, "rating": "moderate", "confidence": "high" },
+    "lowerAbs": { "fatPct": 24.5, "leanLbs": 6.2, "rating": "elevated", "confidence": "high" },
+    "obliques": { "fatPct": 22.0, "leanLbs": 5.8, "rating": "moderate", "confidence": "medium" },
+    "upperBack": { "fatPct": 14.8, "leanLbs": 14.5, "rating": "lean", "confidence": "medium" },
+    "lowerBack": { "fatPct": 20.0, "leanLbs": 7.2, "rating": "moderate", "confidence": "medium" },
+    "glutes": { "fatPct": 20.5, "leanLbs": 11.0, "rating": "moderate", "confidence": "medium" },
+    "leftLeg": { "fatPct": 17.8, "leanLbs": 22.5, "rating": "lean", "confidence": "high" },
+    "rightLeg": { "fatPct": 17.5, "leanLbs": 23.0, "rating": "lean", "confidence": "high" }
   },
+  "ffmi": 22.1,
+  "bmi": 24.5,
+  "estimatedRMR": 1850,
+  "trunkToLimbFatRatio": 1.35,
   "androidFatPct": 22.5,
   "gynoidFatPct": 18.0,
   "agRatio": 1.25,
@@ -47,15 +51,20 @@ Required JSON schema:
   "muscleDensityRating": "above average",
   "bodyType": "mesomorph-leaning",
   "metabolicAge": 28,
+  "confidenceLevel": "high",
+  "populationPercentile": 72,
   "keyFinding": "One specific, clinical-sounding observation about the most significant composition finding.",
   "comparedToLast": "Specific comparison to previous scan data if provided. If first scan, say 'Baseline scan established.'",
-  "recommendations": [
-    "Specific actionable recommendation based on composition findings",
-    "Second recommendation targeting weakest region"
-  ]
+  "recommendations": {
+    "training": "Specific training recommendation based on composition findings",
+    "nutrition": "Specific nutrition recommendation targeting body composition goals",
+    "recovery": "Recovery or lifestyle recommendation to support recomposition",
+    "focus": "Priority recommendation targeting the weakest region or biggest opportunity"
+  }
 }
 
 Rating scale for regions: "very lean" (<12%), "lean" (12-17%), "moderate" (17-23%), "elevated" (23-28%), "high" (>28%).
+Region confidence: "high" if directly visible in photo(s), "medium" if partially visible, "low" if estimated from other cues.
 
 Critical rules:
 - Assess ONLY what is visible in the photo(s). Do not let protocol duration, compound names, or any non-visual context bias your estimates.
@@ -63,9 +72,15 @@ Critical rules:
 - Use the subject's weight to calculate realistic lean/fat mass splits. Total lean + fat must approximately equal body weight.
 - Regional lean mass must sum approximately to total lean mass.
 - Be precise — narrow estimates, not wide ranges. This simulates clinical equipment.
+- FFMI = (lean mass in kg) / (height in m)² — use provided height. Values 20-25 indicate muscular, >25 elite/enhanced.
+- BMI = (weight in kg) / (height in m)². Standard classification.
+- estimatedRMR: Katch-McArdle formula = 370 + (21.6 × lean mass in kg). Round to nearest 10.
+- trunkToLimbFatRatio: average trunk fat% / average limb fat%. >1.3 indicates central adiposity.
 - Android fat = trunk region average. Gynoid fat = hip/thigh region average. A/G ratio > 1.0 indicates android (central) fat distribution.
 - Visceral fat area: <100 cm² normal, 100-160 elevated, >160 high.
 - Metabolic age: estimate based on composition relative to population norms.
+- confidenceLevel: "high" if front+side or more photos, "medium" if front only, "low" if poor image quality.
+- populationPercentile: 0-100, where does this person's lean mass / body fat ratio rank vs. general population of same sex and approximate age bracket.
 - If only front photo available, estimate back/posterior regions with lower confidence.
 - Symmetry score: 10 = perfect bilateral symmetry, assess arm and leg balance.
 - Be honest and consistent. Never inflate or deflate estimates based on expected timeline or protocol. A clinician reports what the scan shows, period.`;
@@ -180,6 +195,201 @@ function FadeIn({ delay = 0, children }) {
   return <div style={{ animation: `fadeUp .5s ease ${delay}s both` }}>{children}</div>;
 }
 
+/** FFMI horizontal gauge with classification zones */
+function FFMIGauge({ value }) {
+  const v = parseFloat(value) || 0;
+  // FFMI zones: <18 below avg, 18-20 avg, 20-22 above avg, 22-25 excellent, >25 elite
+  const zones = [
+    { label: 'Below', max: 18, color: 'rgba(220,80,80,0.6)' },
+    { label: 'Average', max: 20, color: 'rgba(201,168,76,0.6)' },
+    { label: 'Above Avg', max: 22, color: 'rgba(92,184,112,0.6)' },
+    { label: 'Excellent', max: 25, color: 'rgba(0,210,180,0.7)' },
+    { label: 'Elite', max: 30, color: 'rgba(150,120,220,0.7)' },
+  ];
+  const min = 15, max = 30;
+  const pct = Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
+  const [animPct, setAnimPct] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setAnimPct(pct), 100); return () => clearTimeout(t); }, [pct]);
+
+  const getZoneLabel = () => {
+    if (v < 18) return 'Below Average';
+    if (v < 20) return 'Average';
+    if (v < 22) return 'Above Average';
+    if (v < 25) return 'Excellent';
+    return 'Elite';
+  };
+  const getZoneColor = () => {
+    if (v < 18) return 'rgba(220,80,80,0.8)';
+    if (v < 20) return 'rgba(201,168,76,0.8)';
+    if (v < 22) return 'rgba(92,184,112,0.8)';
+    if (v < 25) return 'rgba(0,210,180,0.9)';
+    return 'rgba(150,120,220,0.9)';
+  };
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 12, padding: '12px 14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>FFMI</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: getZoneColor(), fontFamily: T.fm }}>{v.toFixed(1)}</span>
+          <span style={{ fontSize: 9, color: getZoneColor(), fontFamily: T.fm }}>{getZoneLabel()}</span>
+        </div>
+      </div>
+      <div style={{ position: 'relative', height: 8, borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
+        {zones.map((z, i) => {
+          const prevMax = i === 0 ? min : zones[i - 1].max;
+          const width = ((z.max - prevMax) / (max - min)) * 100;
+          return <div key={i} style={{ width: width + '%', height: '100%', background: z.color, opacity: 0.3 }} />;
+        })}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, height: '100%', width: animPct + '%',
+          background: `linear-gradient(90deg, rgba(220,80,80,0.7), rgba(201,168,76,0.7), rgba(0,210,180,0.8), rgba(150,120,220,0.8))`,
+          borderRadius: 4, transition: 'width 1.2s cubic-bezier(.25,.8,.25,1)',
+          boxShadow: `0 0 8px ${getZoneColor()}`,
+        }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        {zones.map((z, i) => <span key={i} style={{ fontSize: 7, color: T.t3, fontFamily: T.fm }}>{z.label}</span>)}
+      </div>
+    </div>
+  );
+}
+
+/** Percentile badge — circular badge showing population rank */
+function PercentileBadge({ value, label }) {
+  const v = parseInt(value) || 0;
+  const color = v >= 80 ? T.teal : v >= 60 ? 'rgba(92,184,112,0.8)' : v >= 40 ? T.gold : 'rgba(220,80,80,0.7)';
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const dur = 1000; const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const p = Math.min((now - start) / dur, 1);
+      setDisplay(Math.round(p * v));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [v]);
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ position: 'relative', width: 56, height: 56, margin: '0 auto' }}>
+        <svg width={56} height={56} viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={28} cy={28} r={24} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3" />
+          <circle cx={28} cy={28} r={24} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round"
+            strokeDasharray={2 * Math.PI * 24} strokeDashoffset={2 * Math.PI * 24 * (1 - v / 100)}
+            style={{ transition: 'stroke-dashoffset 1.2s ease', filter: `drop-shadow(0 0 4px ${color})` }} />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color, fontFamily: T.fm, lineHeight: 1 }}>{display}</span>
+          <span style={{ fontSize: 7, color: T.t3, fontFamily: T.fm }}>%ile</span>
+        </div>
+      </div>
+      {label && <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, marginTop: 4, letterSpacing: 1, textTransform: 'uppercase' }}>{label}</div>}
+    </div>
+  );
+}
+
+/** Confidence indicator dot */
+function ConfidenceDot({ level }) {
+  const color = level === 'high' ? T.teal : level === 'medium' ? T.gold : 'rgba(220,80,80,0.7)';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, boxShadow: `0 0 4px ${color}` }} />
+      <span style={{ fontSize: 8, color, fontFamily: T.fm, textTransform: 'uppercase', letterSpacing: 0.5 }}>{level || 'med'}</span>
+    </span>
+  );
+}
+
+/** Clinical metric card — used in the 2x3 grid */
+function MetricCard({ label, value, unit, color, subtitle }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+      <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: color || T.t1, fontFamily: T.fm, lineHeight: 1 }}>{value}</div>
+      {unit && <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{unit}</div>}
+      {subtitle && <div style={{ fontSize: 7, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{subtitle}</div>}
+    </div>
+  );
+}
+
+/** Scan reveal animation — multi-phase scan line effect */
+function ScanReveal({ children, onComplete }) {
+  const [phase, setPhase] = useState(0); // 0=scanning, 1=revealing, 2=complete
+  const [scanY, setScanY] = useState(0);
+
+  useEffect(() => {
+    // Phase 0: scan line sweeps down (1.5s)
+    const scanDur = 1500;
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const p = Math.min((now - start) / scanDur, 1);
+      setScanY(p * 100);
+      if (p < 1) { raf = requestAnimationFrame(tick); }
+      else { setPhase(1); setTimeout(() => { setPhase(2); onComplete?.(); }, 400); }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  if (phase === 2) return <>{children}</>;
+
+  return (
+    <div style={{ position: 'relative', minHeight: 200 }}>
+      {/* Content with mask */}
+      <div style={{
+        opacity: phase === 1 ? 1 : 0.15,
+        transition: 'opacity 0.4s ease',
+        filter: phase === 0 ? 'blur(2px)' : 'none',
+      }}>
+        {children}
+      </div>
+      {/* Scan line */}
+      {phase === 0 && (
+        <div style={{
+          position: 'absolute', left: 0, right: 0, top: scanY + '%',
+          height: 2, background: `linear-gradient(90deg, transparent, ${T.gold}, transparent)`,
+          boxShadow: `0 0 20px ${T.gold}, 0 0 40px rgba(201,168,76,0.3)`,
+          transition: 'top 0.05s linear',
+          zIndex: 2,
+        }} />
+      )}
+    </div>
+  );
+}
+
+/** Mini sparkline for scan history */
+function ScanSparkline({ checkins, currentId }) {
+  const scanned = (checkins || []).filter(c => c.dexaScan?.totalBodyFatPct).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (scanned.length < 2) return null;
+
+  const values = scanned.map(c => c.dexaScan.totalBodyFatPct);
+  const min = Math.min(...values) - 1;
+  const max = Math.max(...values) + 1;
+  const w = 120, h = 32, px = w / (values.length - 1);
+
+  const points = values.map((v, i) => `${i * px},${h - ((v - min) / (max - min)) * h}`).join(' ');
+  const isCurrent = (c) => c.id === currentId;
+
+  return (
+    <div style={{ display: 'inline-block' }}>
+      <svg width={w} height={h + 4} viewBox={`0 0 ${w} ${h + 4}`}>
+        <polyline points={points} fill="none" stroke="rgba(201,168,76,0.3)" strokeWidth="1.5" />
+        {scanned.map((c, i) => (
+          <circle key={c.id} cx={i * px} cy={h - ((c.dexaScan.totalBodyFatPct - min) / (max - min)) * h}
+            r={isCurrent(c) ? 3 : 1.5}
+            fill={isCurrent(c) ? T.gold : 'rgba(201,168,76,0.5)'}
+            stroke={isCurrent(c) ? T.gold : 'none'} strokeWidth={isCurrent(c) ? 1 : 0}
+            style={isCurrent(c) ? { filter: `drop-shadow(0 0 4px ${T.gold})` } : {}} />
+        ))}
+      </svg>
+      <div style={{ fontSize: 7, color: T.t3, fontFamily: T.fm, textAlign: 'center', marginTop: 1 }}>BF% TREND</div>
+    </div>
+  );
+}
+
 /** Animated radial score ring */
 function Ring({ value, max = 100, color, size = 80, label }) {
   const [progress, setProgress] = useState(0);
@@ -264,8 +474,8 @@ function CompositionBar({ fatPct, leanPct, bonePct }) {
   );
 }
 
-/** Region detail card */
-function RegionCard({ name, data }) {
+/** Region detail card — now with confidence indicator */
+function RegionCard({ name, data, isWorst }) {
   if (!data) return null;
   const color = fatPctToColor(data.fatPct);
   const ratingLabel = data.rating || 'unknown';
@@ -273,14 +483,18 @@ function RegionCard({ name, data }) {
   return (
     <div style={{
       padding: '10px 12px',
-      background: 'rgba(255,255,255,0.015)',
-      border: `1px solid rgba(255,255,255,0.05)`,
+      background: isWorst ? 'rgba(201,168,76,0.02)' : 'rgba(255,255,255,0.015)',
+      border: `1px solid ${isWorst ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.05)'}`,
       borderLeft: `3px solid ${color}`,
       borderRadius: 10,
+      animation: isWorst ? 'pulseGlow 3s ease-in-out infinite' : undefined,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{name}</span>
-        <span style={{ fontSize: 10, color, fontFamily: T.fm, fontWeight: 600 }}>{data.fatPct}%</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {data.confidence && <ConfidenceDot level={data.confidence} />}
+          <span style={{ fontSize: 10, color, fontFamily: T.fm, fontWeight: 600 }}>{data.fatPct}%</span>
+        </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{data.leanLbs} lbs lean</span>
@@ -294,6 +508,10 @@ function RegionCard({ name, data }) {
   );
 }
 
+const REC_ICONS = { training: '\u{1F3CB}', nutrition: '\u{1F34E}', recovery: '\u{1F6CC}', focus: '\u{1F3AF}' };
+const REC_LABELS = { training: 'Training', nutrition: 'Nutrition', recovery: 'Recovery', focus: 'Priority Focus' };
+const REC_COLORS = { training: T.teal, nutrition: 'rgba(92,184,112,0.8)', recovery: T.purple, focus: T.gold };
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    MAIN COMPONENT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -303,6 +521,7 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
   const [scanData, setScanData] = useState(null);
   const [error, setError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [freshScan, setFreshScan] = useState(false); // true when scan was just run (show reveal anim)
   const abortRef = useRef(null);
 
   // Find check-ins with photos
@@ -311,10 +530,11 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
   const latestWithScan = sorted.find(c => c.dexaScan);
   const selected = selectedId ? sorted.find(c => c.id === selectedId) : sorted[0];
 
-  // Auto-load saved scan data
+  // Auto-load saved scan data (no reveal animation for saved scans)
   useEffect(() => {
     if (!scanData && selected?.dexaScan) {
       setScanData(selected.dexaScan);
+      setFreshScan(false);
     }
   }, [selected]);
 
@@ -352,7 +572,7 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
 
       const payload = {
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2500,
+        max_tokens: 3500,
         system: DEXA_PROMPT,
         messages: [{
           role: 'user',
@@ -394,6 +614,7 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
 
       // Save scan data to check-in
       setScanData(parsed);
+      setFreshScan(true);
       setCheckins(prev => (prev || []).map(c =>
         c.id === checkin.id ? { ...c, dexaScan: parsed } : c
       ));
@@ -418,32 +639,81 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
   /* ── Empty state ── */
   if (withPhotos.length === 0) {
     return (
-      <div style={{ animation: 'fadeUp .5s ease both', textAlign: 'center', padding: '60px 20px' }}>
-        <SamsaraSymbol size={48} />
-        <p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t2, marginTop: 16, letterSpacing: 1 }}>No photos yet</p>
-        <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, marginTop: 8, lineHeight: 1.6 }}>Complete a check-in with photos to generate your first AI Body Scan.</p>
+      <div style={{ animation: 'fadeUp .5s ease both', textAlign: 'center', padding: '40px 20px' }}>
+        <div style={{ opacity: 0.12, margin: '0 auto 16px' }}>
+          <BodyMap regions={{}} size={120} />
+        </div>
+        <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, margin: '0 0 8px' }}>No photos yet</p>
+        <p style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, lineHeight: 1.6, margin: '0 0 16px', maxWidth: 280, marginLeft: 'auto', marginRight: 'auto' }}>
+          Complete a check-in with photos to generate your first AI Body Scan.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+          {['Regional fat mapping', 'FFMI analysis', 'Population percentile', 'RMR calculation', 'Symmetry score'].map((feat, i) => (
+            <span key={i} style={{
+              fontSize: 8, padding: '3px 8px', borderRadius: 4,
+              background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.1)',
+              color: T.gold, fontFamily: T.fm, letterSpacing: 0.5,
+              animation: `fadeUp .3s ease ${0.2 + i * 0.1}s both`,
+            }}>{feat}</span>
+          ))}
+        </div>
       </div>
     );
   }
 
   /* ── Scanning state ── */
   if (scanning) {
+    const SCAN_STEPS = [
+      { label: 'Reading photo data', icon: '\u{1F4F7}' },
+      { label: 'Mapping regional fat', icon: '\u{1F9EC}' },
+      { label: 'Estimating lean mass', icon: '\u{1F4AA}' },
+      { label: 'Calculating FFMI & BMI', icon: '\u{1F4CA}' },
+      { label: 'Assessing visceral fat', icon: '\u{1FA7A}' },
+      { label: 'Computing RMR', icon: '\u{1F525}' },
+      { label: 'Ranking vs population', icon: '\u{1F3C6}' },
+      { label: 'Generating report', icon: '\u{1F4CB}' },
+    ];
     return (
-      <div style={{ animation: 'fadeUp .4s ease both', textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-          <div style={{ width: 80, height: 80, border: '2px solid rgba(201,168,76,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Enso size={32} />
+      <div style={{ animation: 'fadeUp .4s ease both', textAlign: 'center', padding: '40px 20px' }}>
+        {/* Scanning silhouette with sweep */}
+        <div style={{ position: 'relative', display: 'inline-block', marginBottom: 20 }}>
+          <div style={{ opacity: 0.15 }}>
+            <BodyMap regions={{}} size={100} />
           </div>
-          <div style={{ position: 'absolute', inset: -4, border: '2px solid transparent', borderTopColor: T.gold, borderRadius: '50%', animation: 'spin 2s linear infinite' }} />
+          {/* Scan line sweeping */}
+          <div style={{
+            position: 'absolute', left: -8, right: -8, height: 2,
+            background: `linear-gradient(90deg, transparent, ${T.gold}, transparent)`,
+            boxShadow: `0 0 16px ${T.gold}, 0 0 32px rgba(201,168,76,0.2)`,
+            animation: 'scanSweep 2.5s ease-in-out infinite',
+            top: 0,
+          }} />
+          {/* Outer ring */}
+          <div style={{ position: 'absolute', inset: -12, border: '1px solid rgba(201,168,76,0.08)', borderRadius: '50%' }} />
+          <div style={{ position: 'absolute', inset: -12, border: '2px solid transparent', borderTopColor: T.gold, borderRadius: '50%', animation: 'spin 3s linear infinite' }} />
         </div>
-        <p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t1, marginTop: 20, letterSpacing: 1 }}>Scanning</p>
-        <p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 6 }}>Analyzing body composition across all regions...</p>
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
-          {['Estimating fat distribution', 'Mapping lean mass', 'Calculating visceral fat', 'Assessing symmetry'].map((step, i) => (
-            <span key={i} style={{ fontSize: 9, padding: '3px 8px', borderRadius: 4, background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.12)', color: T.gold, fontFamily: T.fm, animation: `fadeUp .4s ease ${0.5 + i * 0.3}s both` }}>{step}</span>
+
+        <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1, letterSpacing: 2, margin: '0 0 4px' }}>Scanning</p>
+        <p style={{ fontFamily: T.fm, fontSize: 10, color: T.t3, margin: '0 0 20px' }}>Full-spectrum body composition analysis</p>
+
+        {/* Progressive step indicators */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 240, margin: '0 auto' }}>
+          {SCAN_STEPS.map((step, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+              borderRadius: 6,
+              background: 'rgba(201,168,76,0.02)',
+              border: '1px solid rgba(201,168,76,0.06)',
+              animation: `fadeUp .3s ease ${0.3 + i * 0.4}s both`,
+            }}>
+              <span style={{ fontSize: 12, flexShrink: 0, width: 18, textAlign: 'center' }}>{step.icon}</span>
+              <span style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, opacity: 0.8 }}>{step.label}</span>
+              <span style={{ marginLeft: 'auto', width: 4, height: 4, borderRadius: '50%', background: T.gold, animation: `pulse 1.5s ease ${0.3 + i * 0.4}s infinite`, flexShrink: 0 }} />
+            </div>
           ))}
         </div>
-        <button onClick={cancelScan} style={{ ...S.newVialBtn, marginTop: 24, fontSize: 11 }}>Cancel</button>
+
+        <button onClick={cancelScan} style={{ ...S.newVialBtn, marginTop: 20, fontSize: 11, maxWidth: 120, margin: '20px auto 0' }}>Cancel</button>
       </div>
     );
   }
@@ -470,68 +740,111 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
     const regionEntries = Object.entries(regions).filter(([, v]) => v && v.fatPct != null);
     const bestRegion = regionEntries.reduce((best, [k, v]) => (!best || v.fatPct < best[1].fatPct) ? [k, v] : best, null);
     const worstRegion = regionEntries.reduce((worst, [k, v]) => (!worst || v.fatPct > worst[1].fatPct) ? [k, v] : worst, null);
+    const worstKey = worstRegion ? worstRegion[0] : null;
 
-    return (
-      <div style={{ animation: 'fadeUp .5s ease both' }}>
-        {/* Report header */}
+    // Support both old (array) and new (object) recommendation formats
+    const recs = d.recommendations || {};
+    const recsIsArray = Array.isArray(recs);
+
+    const reportContent = (
+      <div>
+        {/* ── HEADER ── */}
         <FadeIn delay={0}>
-          <div style={{ textAlign: 'center', padding: '4px 0 16px' }}>
-            <div style={{ fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 6 }}>AI BODY SCAN</div>
-            <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>
-              {selected?.date || 'Unknown'} {'\u00B7'} Day {selected?.day || '?'} {'\u00B7'} {selected?.weight || '?'} lbs
+          <div style={{ textAlign: 'center', padding: '4px 0 12px' }}>
+            <div style={{ fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 4 }}>AI BODY SCAN</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span style={{ fontSize: 9, color: T.t3, fontFamily: T.fm }}>
+                {selected?.date || 'Unknown'} {'\u00B7'} {selected?.weight || '?'} lbs
+              </span>
+              {d.confidenceLevel && <ConfidenceDot level={d.confidenceLevel} />}
             </div>
           </div>
         </FadeIn>
 
-        {/* Hero: Body Map + Total Composition */}
+        {/* ── HERO: Body Map + Ring + Sparkline + Percentile ── */}
         <FadeIn delay={0.1}>
-          <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
             {/* Body Map */}
-            <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>
-              <BodyMap regions={regions} size={140} />
+            <div style={{ flex: '0 0 auto' }}>
+              <BodyMap regions={regions} size={130} />
             </div>
 
-            {/* Composition summary */}
-            <div style={{ flex: 1, paddingTop: 8 }}>
-              <Ring value={fatPct} max={50} color={fatPctToColor(fatPct)} size={72} label="Body Fat" />
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Right column: ring, percentile, sparkline */}
+            <div style={{ flex: 1, paddingTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <Ring value={fatPct} max={50} color={fatPctToColor(fatPct)} size={68} label="Body Fat" />
+                {d.populationPercentile != null && (
+                  <PercentileBadge value={d.populationPercentile} label="Pop. Rank" />
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Lean Mass</span>
+                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Lean</span>
                   <span style={{ fontSize: 11, color: T.teal, fontFamily: T.fm, fontWeight: 600 }}>{leanLbs} lbs</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Fat Mass</span>
+                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Fat</span>
                   <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>{fatLbs} lbs</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Metabolic Age</span>
-                  <span style={{ fontSize: 11, color: (d.metabolicAge || 0) <= (parseInt(profile?.age) || 30) ? T.teal : T.amber, fontFamily: T.fm, fontWeight: 600 }}>{d.metabolicAge || '--'}</span>
-                </div>
               </div>
+              <ScanSparkline checkins={sorted} currentId={selected?.id} />
             </div>
           </div>
         </FadeIn>
 
-        {/* Composition Bar */}
-        <FadeIn delay={0.2}>
-          <div style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>BODY COMPOSITION</div>
-            <CompositionBar fatPct={fatPct} leanPct={100 - fatPct - bonePct} bonePct={bonePct} />
-          </div>
-        </FadeIn>
+        {/* ── FFMI GAUGE ── */}
+        {d.ffmi > 0 && (
+          <FadeIn delay={0.15}>
+            <div style={{ marginBottom: 14 }}>
+              <FFMIGauge value={d.ffmi} />
+            </div>
+          </FadeIn>
+        )}
 
-        {/* Key Finding */}
+        {/* ── KEY FINDING ── */}
         {d.keyFinding && (
-          <FadeIn delay={0.25}>
+          <FadeIn delay={0.2}>
             <div style={{ position: 'relative', padding: '14px 16px', marginBottom: 14, background: 'rgba(201,168,76,0.03)', borderRadius: 12, borderLeft: `3px solid ${T.gold}` }}>
               <p style={{ fontSize: 13, color: T.gold, fontFamily: T.fd, lineHeight: 1.6, margin: 0, fontWeight: 400, fontStyle: 'italic' }}>{d.keyFinding}</p>
             </div>
           </FadeIn>
         )}
 
-        {/* Compared to Last */}
+        {/* ── COMPOSITION BAR ── */}
+        <FadeIn delay={0.25}>
+          <div style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>BODY COMPOSITION</div>
+            <CompositionBar fatPct={fatPct} leanPct={100 - fatPct - bonePct} bonePct={bonePct} />
+          </div>
+        </FadeIn>
+
+        {/* ── CLINICAL METRICS GRID (2x3) ── */}
+        <FadeIn delay={0.3}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 14 }}>
+            <MetricCard label="BMI" value={d.bmi || '--'} color={
+              (d.bmi || 0) < 18.5 ? 'rgba(220,80,80,0.7)' : (d.bmi || 0) < 25 ? T.teal : (d.bmi || 0) < 30 ? T.gold : T.red
+            } subtitle={(d.bmi || 0) < 18.5 ? 'under' : (d.bmi || 0) < 25 ? 'normal' : (d.bmi || 0) < 30 ? 'over' : 'obese'} />
+            <MetricCard label="RMR" value={d.estimatedRMR || '--'} unit="kcal/day" color={T.teal} />
+            <MetricCard label="Met. Age" value={d.metabolicAge || '--'} color={
+              (d.metabolicAge || 99) <= (parseInt(profile?.age) || 30) ? T.teal : T.gold
+            } subtitle={
+              (d.metabolicAge || 99) <= (parseInt(profile?.age) || 30) ? 'younger' : 'older'
+            } />
+            <MetricCard label="Visceral" value={d.visceralFatArea || '--'} unit={'cm\u00B2'} color={
+              (d.visceralFatArea || 0) < 100 ? T.teal : (d.visceralFatArea || 0) < 160 ? T.gold : T.red
+            } subtitle={(d.visceralFatArea || 0) < 100 ? 'normal' : (d.visceralFatArea || 0) < 160 ? 'elevated' : 'high'} />
+            <MetricCard label="A/G Ratio" value={d.agRatio || '--'} color={
+              (d.agRatio || 0) <= 1.0 ? T.teal : (d.agRatio || 0) <= 1.3 ? T.gold : T.red
+            } subtitle={(d.agRatio || 0) <= 1.0 ? 'gynoid' : 'android'} />
+            <MetricCard label="Symmetry" value={d.symmetryScore || '--'} unit="/ 10" color={
+              (d.symmetryScore || 0) >= 8 ? T.teal : (d.symmetryScore || 0) >= 6 ? T.gold : T.amber
+            } />
+          </div>
+        </FadeIn>
+
+        {/* ── COMPARED TO LAST ── */}
         {d.comparedToLast && d.comparedToLast !== 'Baseline scan established.' && (
-          <FadeIn delay={0.3}>
+          <FadeIn delay={0.35}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', marginBottom: 14, background: 'linear-gradient(135deg, rgba(201,168,76,0.04), rgba(0,210,180,0.03))', border: '1px solid rgba(201,168,76,0.1)', borderRadius: 12 }}>
               <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>{'\u0394'}</span>
               <p style={{ fontSize: 12, color: T.t1, fontFamily: T.fb, lineHeight: 1.55, fontWeight: 400, margin: 0 }}>{d.comparedToLast}</p>
@@ -539,58 +852,8 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
           </FadeIn>
         )}
 
-        {/* Visceral Fat + A/G Ratio + Symmetry */}
-        <FadeIn delay={0.35}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 14 }}>
-            <div style={{ background: T.card || 'rgba(255,255,255,0.015)', border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Visceral</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: (d.visceralFatArea || 0) < 100 ? T.teal : (d.visceralFatArea || 0) < 160 ? T.gold : T.red, fontFamily: T.fm }}>{d.visceralFatArea || '--'}</div>
-              <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>cm{'\u00B2'}</div>
-            </div>
-            <div style={{ background: T.card || 'rgba(255,255,255,0.015)', border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>A/G Ratio</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: (d.agRatio || 0) <= 1.0 ? T.teal : (d.agRatio || 0) <= 1.3 ? T.gold : T.red, fontFamily: T.fm }}>{d.agRatio || '--'}</div>
-              <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>{(d.agRatio || 0) <= 1.0 ? 'gynoid' : 'android'}</div>
-            </div>
-            <div style={{ background: T.card || 'rgba(255,255,255,0.015)', border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4 }}>Symmetry</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: (d.symmetryScore || 0) >= 8 ? T.teal : (d.symmetryScore || 0) >= 6 ? T.gold : T.amber, fontFamily: T.fm }}>{d.symmetryScore || '--'}</div>
-              <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>/ 10</div>
-            </div>
-          </div>
-        </FadeIn>
-
-        {/* Regional Breakdown */}
+        {/* ── FAT DISTRIBUTION ── */}
         <FadeIn delay={0.4}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>REGIONAL BREAKDOWN</div>
-
-            {/* Best/Worst callout */}
-            {bestRegion && worstRegion && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <div style={{ flex: 1, padding: '8px 10px', background: 'rgba(0,210,180,0.03)', border: '1px solid rgba(0,210,180,0.12)', borderRadius: 8, textAlign: 'center' }}>
-                  <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Leanest</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginTop: 2 }}>{regionNames[bestRegion[0]]}</div>
-                  <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{bestRegion[1].fatPct}%</div>
-                </div>
-                <div style={{ flex: 1, padding: '8px 10px', background: 'rgba(201,168,76,0.03)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 8, textAlign: 'center' }}>
-                  <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Focus Area</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.gold, fontFamily: T.fb, marginTop: 2 }}>{regionNames[worstRegion[0]]}</div>
-                  <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{worstRegion[1].fatPct}%</div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-              {Object.entries(regionNames).map(([key, name]) => (
-                <RegionCard key={key} name={name} data={regions[key]} />
-              ))}
-            </div>
-          </div>
-        </FadeIn>
-
-        {/* Android vs Gynoid detail */}
-        <FadeIn delay={0.45}>
           <div style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>FAT DISTRIBUTION</div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -613,31 +876,98 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
                 </div>
               </div>
             </div>
-            <div style={{ textAlign: 'center', marginTop: 10 }}>
-              <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Distribution: </span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.t1, fontFamily: T.fm }}>{d.bodyType || 'Mixed'}</span>
-              <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}> {'\u00B7'} Muscle density: </span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.t1, fontFamily: T.fm }}>{d.muscleDensityRating || '--'}</span>
+            {d.trunkToLimbFatRatio > 0 && (
+              <div style={{ textAlign: 'center', marginTop: 10, display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Trunk:Limb {'\u2014'} <span style={{ fontWeight: 600, color: (d.trunkToLimbFatRatio || 0) > 1.3 ? T.gold : T.teal }}>{d.trunkToLimbFatRatio}</span></span>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Type: <span style={{ fontWeight: 600, color: T.t1 }}>{d.bodyType || 'Mixed'}</span></span>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Density: <span style={{ fontWeight: 600, color: T.t1 }}>{d.muscleDensityRating || '--'}</span></span>
+              </div>
+            )}
+            {!d.trunkToLimbFatRatio && (
+              <div style={{ textAlign: 'center', marginTop: 10 }}>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>Distribution: </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.t1, fontFamily: T.fm }}>{d.bodyType || 'Mixed'}</span>
+                <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}> {'\u00B7'} Muscle density: </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.t1, fontFamily: T.fm }}>{d.muscleDensityRating || '--'}</span>
+              </div>
+            )}
+          </div>
+        </FadeIn>
+
+        {/* ── REGIONAL BREAKDOWN ── */}
+        <FadeIn delay={0.45}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>REGIONAL BREAKDOWN</div>
+
+            {/* Best/Worst callout */}
+            {bestRegion && worstRegion && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                <div style={{ flex: 1, padding: '8px 10px', background: 'rgba(0,210,180,0.03)', border: '1px solid rgba(0,210,180,0.12)', borderRadius: 8, textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Leanest</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginTop: 2 }}>{regionNames[bestRegion[0]]}</div>
+                  <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{bestRegion[1].fatPct}%</div>
+                </div>
+                <div style={{ flex: 1, padding: '8px 10px', background: 'rgba(201,168,76,0.03)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 8, textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Focus Area</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.gold, fontFamily: T.fb, marginTop: 2 }}>{regionNames[worstRegion[0]]}</div>
+                  <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{worstRegion[1].fatPct}%</div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {Object.entries(regionNames).map(([key, name]) => (
+                <RegionCard key={key} name={name} data={regions[key]} isWorst={key === worstKey} />
+              ))}
             </div>
           </div>
         </FadeIn>
 
-        {/* Recommendations */}
-        {Array.isArray(d.recommendations) && d.recommendations.length > 0 && (
-          <FadeIn delay={0.5}>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>RECOMMENDATIONS</div>
-              {d.recommendations.map((rec, i) => (
+        {/* ── RECOMMENDATIONS (categorized or legacy array) ── */}
+        <FadeIn delay={0.5}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>RECOMMENDATIONS</div>
+            {recsIsArray ? (
+              /* Legacy array format */
+              recs.map((rec, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', marginBottom: 6, background: 'rgba(201,168,76,0.025)', border: '1px solid rgba(201,168,76,0.1)', borderRadius: 10 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.gold, flexShrink: 0, marginTop: 5, boxShadow: `0 0 6px ${T.gold}` }} />
                   <span style={{ fontSize: 12, color: T.t2, fontFamily: T.fb, lineHeight: 1.55 }}>{rec}</span>
                 </div>
-              ))}
+              ))
+            ) : (
+              /* New categorized format */
+              Object.entries(recs).filter(([, v]) => v).map(([cat, text]) => (
+                <div key={cat} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', marginBottom: 6,
+                  background: `${REC_COLORS[cat] || T.gold}08`,
+                  border: `1px solid ${REC_COLORS[cat] || T.gold}18`,
+                  borderRadius: 10,
+                }}>
+                  <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 28 }}>
+                    <span style={{ fontSize: 14 }}>{REC_ICONS[cat] || '\u2022'}</span>
+                    <span style={{ fontSize: 7, color: REC_COLORS[cat] || T.gold, fontFamily: T.fm, textTransform: 'uppercase', letterSpacing: 0.5 }}>{REC_LABELS[cat] || cat}</span>
+                  </div>
+                  <span style={{ fontSize: 12, color: T.t2, fontFamily: T.fb, lineHeight: 1.55 }}>{text}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </FadeIn>
+
+        {/* ── CONFIDENCE NOTICE ── */}
+        {d.confidenceLevel && d.confidenceLevel !== 'high' && (
+          <FadeIn delay={0.52}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', marginBottom: 10, background: 'rgba(201,168,76,0.03)', border: '1px solid rgba(201,168,76,0.1)', borderRadius: 8 }}>
+              <ConfidenceDot level={d.confidenceLevel} />
+              <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>
+                {d.confidenceLevel === 'medium' ? 'Single-photo scan — add side/back photos for higher accuracy.' : 'Low quality input — results may be less accurate.'}
+              </span>
             </div>
           </FadeIn>
         )}
 
-        {/* Disclaimer */}
+        {/* ── DISCLAIMER ── */}
         <FadeIn delay={0.55}>
           <div style={{ padding: '10px 12px', marginBottom: 14, background: 'rgba(255,255,255,0.01)', border: `1px solid ${T.border}`, borderRadius: 8 }}>
             <p style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, lineHeight: 1.6, margin: 0, textAlign: 'center' }}>
@@ -646,7 +976,7 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
           </div>
         </FadeIn>
 
-        {/* Actions */}
+        {/* ── ACTIONS ── */}
         <FadeIn delay={0.6}>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => { setScanData(null); setSelectedId(null); }} style={{ ...S.newVialBtn, flex: 1, padding: '12px', textAlign: 'center', fontSize: 11 }}>Back</button>
@@ -655,15 +985,45 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
         </FadeIn>
       </div>
     );
+
+    return (
+      <div style={{ animation: 'fadeUp .5s ease both' }}>
+        {freshScan ? (
+          <ScanReveal onComplete={() => setFreshScan(false)}>{reportContent}</ScanReveal>
+        ) : (
+          reportContent
+        )}
+      </div>
+    );
   }
 
   /* ── Select check-in to scan ── */
+  const scannedCount = sorted.filter(c => c.dexaScan).length;
   return (
     <div style={{ animation: 'fadeUp .5s ease both' }}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 6 }}>AI BODY SCAN</div>
-        <p style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t1, letterSpacing: 1, margin: '0 0 6px' }}>Select a check-in to scan</p>
-        <p style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.6 }}>Generate a DEXA-style body composition report from your progress photos.</p>
+        <p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t1, letterSpacing: 1, margin: '0 0 6px' }}>Select a check-in</p>
+        <p style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.6, margin: 0 }}>
+          DEXA-grade composition analysis with FFMI, percentile ranking, and clinical metrics.
+        </p>
+        {/* Stats bar */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{sorted.length}</div>
+            <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Check-ins</div>
+          </div>
+          <div style={{ width: 1, background: T.border, alignSelf: 'stretch' }} />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.teal, fontFamily: T.fm }}>{scannedCount}</div>
+            <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Scanned</div>
+          </div>
+          <div style={{ width: 1, background: T.border, alignSelf: 'stretch' }} />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.gold, fontFamily: T.fm }}>{sorted.length - scannedCount}</div>
+            <div style={{ fontSize: 8, color: T.t3, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>Pending</div>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -675,30 +1035,40 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
       {sorted.map((ci, idx) => {
         const hasScan = !!ci.dexaScan;
         const isLatest = idx === 0;
+        const scanBf = hasScan ? ci.dexaScan.totalBodyFatPct : null;
         return (
           <div key={ci.id} style={{
             ...S.card, padding: '12px 14px', marginBottom: 8, cursor: 'pointer',
             borderColor: isLatest ? 'rgba(201,168,76,0.15)' : T.border,
             background: isLatest ? 'rgba(201,168,76,0.02)' : undefined,
+            animation: `fadeUp .4s ease ${idx * 0.05}s both`,
           }}
             onClick={() => {
-              if (hasScan) { setSelectedId(ci.id); setScanData(ci.dexaScan); }
+              if (hasScan) { setSelectedId(ci.id); setScanData(ci.dexaScan); setFreshScan(false); }
               else { setSelectedId(ci.id); runScan(ci); }
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>Day {ci.day || '?'}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>Day {ci.day || '?'}</span>
+                  {isLatest && <span style={{ fontSize: 7, padding: '2px 5px', borderRadius: 3, background: 'rgba(201,168,76,0.1)', color: T.gold, fontFamily: T.fm, letterSpacing: 0.5 }}>LATEST</span>}
+                </div>
                 <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>
-                  {ci.date} {'\u00B7'} {ci.weight} lbs {'\u00B7'} {ci.waist}"
+                  {ci.date} {'\u00B7'} {ci.weight} lbs{ci.waist ? ` \u00B7 ${ci.waist}"` : ''}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {hasScan && (
-                  <span style={{ fontSize: 9, padding: '3px 8px', borderRadius: 4, background: 'rgba(92,184,112,0.1)', color: '#5cb870', fontFamily: T.fm }}>Scanned</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {hasScan ? (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: fatPctToColor(scanBf), fontFamily: T.fm }}>{scanBf}%</div>
+                    <div style={{ fontSize: 7, color: T.t3, fontFamily: T.fm }}>BF</div>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 9, padding: '4px 10px', borderRadius: 6, background: T.goldS, border: `1px solid ${T.goldM}`, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>Scan</span>
                 )}
                 {ci.thumbFront && (
-                  <img src={'data:image/jpeg;base64,' + ci.thumbFront} alt="" style={{ width: 32, height: 42, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}` }} />
+                  <img src={'data:image/jpeg;base64,' + ci.thumbFront} alt="" style={{ width: 32, height: 42, objectFit: 'cover', borderRadius: 6, border: `1px solid ${hasScan ? fatPctToColor(scanBf) : T.border}` }} />
                 )}
               </div>
             </div>

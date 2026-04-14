@@ -106,19 +106,17 @@ Assessment principles:
    AI WEIGHT / WAIST ESTIMATION PROMPT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const ESTIMATE_PROMPT = `You are a clinical body composition estimator. Given a physique photo, estimate the subject's body weight and waist circumference based on visual assessment.
+const ESTIMATE_PROMPT = `You are a clinical body composition estimator. Given a physique photo, estimate the subject's body weight based on visual assessment.
 
 Return ONLY a valid JSON object — no markdown, no backticks, no explanation:
 {
   "weightLbs": 185,
-  "waistInches": 34.5,
   "confidence": "medium",
   "notes": "Brief 1-sentence note on estimation basis"
 }
 
 Rules:
 - weightLbs: integer, estimate in pounds based on visible frame size, muscle mass, and fat distribution
-- waistInches: one decimal, estimate in inches at navel level based on visible midsection
 - confidence: "high" (clear full-body view, good lighting), "medium" (partial view or average conditions), "low" (obstructed/poor quality)
 - Use the subject's height and biological sex if provided to improve accuracy
 - Be precise — give a single best estimate, not a range
@@ -548,7 +546,7 @@ export default function BodyTab({
   const [editData, setEditData] = useState({ weight: '', waist: '', day: '' });
   const [estimating, setEstimating] = useState(false);
   const [estimateError, setEstimateError] = useState(null);
-  const [aiEstimate, setAiEstimate] = useState({ weight: false, waist: false });
+  const [aiEstimate, setAiEstimate] = useState({ weight: false });
 
   /* --- compare state --- */
   const [compareA, setCompareA] = useState(null);
@@ -725,14 +723,14 @@ export default function BodyTab({
     setPhotos({ front: null, side: null, back: null, flex: null });
     setThumbs({ front: null, side: null, back: null, flex: null });
     setAnalysis(null); setError(null); setParseWarning(null); setLastPayload(null); setCompressing(null);
-    setAiEstimate({ weight: false, waist: false }); setEstimateError(null);
+    setAiEstimate({ weight: false }); setEstimateError(null);
   }, []);
 
   /* ============================================================
      AI WEIGHT / WAIST ESTIMATION
      ============================================================ */
 
-  const runEstimate = useCallback(async (fields = ['weight', 'waist']) => {
+  const runEstimate = useCallback(async () => {
     if (!photos.front) return;
     setEstimating(true); setEstimateError(null);
     const heightStr = profile?.height ? `${profile.height.feet}'${profile.height.inches}"` : 'unknown';
@@ -740,18 +738,13 @@ export default function BodyTab({
       model: 'claude-sonnet-4-20250514', max_tokens: 300, system: ESTIMATE_PROMPT,
       messages: [{ role: 'user', content: [
         ...buildImageBlocks(photos),
-        { type: 'text', text: `Estimate this person's ${fields.join(' and ')}.\nHeight: ${heightStr}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.` },
+        { type: 'text', text: `Estimate this person's weight.\nHeight: ${heightStr}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.` },
       ]}],
     };
     try {
       const result = await sendAnalysisRequest(payload, null);
-      if (result.parsed) {
-        const est = result.parsed;
-        setStats(p => ({
-          ...p,
-          ...(fields.includes('weight') && est.weightLbs ? { weight: String(Math.round(est.weightLbs)) } : {}),
-          ...(fields.includes('waist') && est.waistInches ? { waist: String(est.waistInches) } : {}),
-        }));
+      if (result.parsed && result.parsed.weightLbs) {
+        setStats(p => ({ ...p, weight: String(Math.round(result.parsed.weightLbs)) }));
       } else {
         setEstimateError('Could not parse estimate. Enter manually.');
       }
@@ -1173,28 +1166,14 @@ export default function BodyTab({
                   <input type="number" inputMode="decimal" value={stats.weight} onChange={e => setStats(p => ({ ...p, weight: e.target.value }))} style={{ ...S.input, width: '100%' }} />
                 )}
               </div>
-              {/* Waist — with AI estimate toggle */}
+              {/* Waist — manual only */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Waist (inches)</label>
-                  <button onClick={() => { setAiEstimate(p => ({ ...p, waist: !p.waist })); if (!aiEstimate.waist) setStats(p => ({ ...p, waist: '' })); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 10, color: aiEstimate.waist ? T.teal : T.t3, fontFamily: T.fm, fontWeight: aiEstimate.waist ? 600 : 400 }}>
-                      {aiEstimate.waist ? '\u2713 AI Estimate' : 'AI Estimate'}
-                    </span>
-                  </button>
-                </div>
-                {aiEstimate.waist ? (
-                  <div style={{ ...S.input, width: '100%', display: 'flex', alignItems: 'center', opacity: 0.6, color: T.teal, fontSize: 12, fontFamily: T.fm, boxSizing: 'border-box' }}>
-                    AI will estimate from your photos
-                  </div>
-                ) : (
-                  <input type="number" inputMode="decimal" value={stats.waist} onChange={e => setStats(p => ({ ...p, waist: e.target.value }))} style={{ ...S.input, width: '100%' }} />
-                )}
+                <label style={{ ...S.label, fontSize: 10, marginBottom: 6 }}>Waist (inches)</label>
+                <input type="number" inputMode="decimal" value={stats.waist} onChange={e => setStats(p => ({ ...p, waist: e.target.value }))} style={{ ...S.input, width: '100%' }} />
               </div>
             </div>
             <button onClick={() => setStep(2)}
-              disabled={!stats.day && !aiEstimate.weight && !aiEstimate.waist && !stats.weight && !stats.waist}
+              disabled={!stats.day && !aiEstimate.weight && !stats.weight && !stats.waist}
               style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center' }}>
               Next: Photos {'\u2192'}
             </button>
@@ -1210,21 +1189,21 @@ export default function BodyTab({
             {error && !analyzing && <div style={{ ...S.warning, marginBottom: 14, marginTop: 0 }}>{error.title}: {error.detail}</div>}
             {PHOTO_SLOTS.map(slot => <PhotoSlot key={slot.key} slot={slot} photo={photos[slot.key]} thumb={thumbs[slot.key]} compressing={compressing} onCapture={handlePhoto} onRemove={removePhoto} />)}
             {photoCount > 0 && <div style={{ textAlign: 'center', padding: '8px 0', marginBottom: 8, fontSize: 11, color: T.gold, fontFamily: T.fm }}>{photoCount} photo{photoCount !== 1 ? 's' : ''} ready for analysis</div>}
-            {/* AI Weight/Waist Estimation — triggered by toggle in step 1 */}
-            {photos.front && (aiEstimate.weight || aiEstimate.waist) && (!stats.weight || !stats.waist) && (
+            {/* AI Weight Estimation — triggered by toggle in step 1 */}
+            {photos.front && aiEstimate.weight && !stats.weight && (
               <div style={{ ...S.card, padding: '14px', marginBottom: 12, borderColor: 'rgba(0,210,180,0.2)', background: 'rgba(0,210,180,0.03)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.teal, fontFamily: T.fb }}>
-                    {'\u2728'} AI Estimation
+                    {'\u2728'} AI Weight Estimation
                   </div>
                   {estimating && <div style={{ width: 14, height: 14, border: '2px solid ' + T.teal, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
                 </div>
                 <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginBottom: 10, lineHeight: 1.5 }}>
-                  {aiEstimate.weight && aiEstimate.waist ? 'Estimating weight and waist' : aiEstimate.weight ? 'Estimating weight' : 'Estimating waist'} from your photo{photoCount > 1 ? 's' : ''}.
+                  Estimating weight from your photo{photoCount > 1 ? 's' : ''}.
                 </div>
-                <button onClick={() => { const fields = []; if (aiEstimate.weight && !stats.weight) fields.push('weight'); if (aiEstimate.waist && !stats.waist) fields.push('waist'); if (fields.length) runEstimate(fields); }} disabled={estimating}
+                <button onClick={() => runEstimate(['weight'])} disabled={estimating}
                   style={{ ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center', fontSize: 11, opacity: estimating ? 0.5 : 1 }}>
-                  {estimating ? 'Analyzing photos...' : `Estimate ${aiEstimate.weight && aiEstimate.waist ? 'Weight & Waist' : aiEstimate.weight ? 'Weight' : 'Waist'}`}
+                  {estimating ? 'Analyzing photos...' : 'Estimate Weight'}
                 </button>
                 {estimateError && <div style={{ fontSize: 10, color: T.red, fontFamily: T.fm, marginTop: 6 }}>{estimateError}</div>}
               </div>

@@ -540,11 +540,11 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     return { ninetyDay, oneYear, costToWeightGoal, costToWaistGoal };
   }, [costData.totalDaily, costData.totalYearly, checkins, profile?.targetWeight, profile?.targetWaist]);
 
-  const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency === 'intermittent' || p.frequency === 'as_needed' ? 'daily' : p.frequency, timing: p.timing, timingGroup: 'morning', notes: '' }); setAddModal(p); };
-  const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning', addedDate: getToday() }; setStack(p => [...p, nd]); setAddModal(null); };
+  const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency === 'intermittent' || p.frequency === 'as_needed' ? 'daily' : p.frequency, timing: p.timing, timingGroup: 'morning', notes: '', addedDate: getToday() }); setAddModal(p); };
+  const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning', addedDate: modalData.addedDate || getToday() }; setStack(p => [...p, nd]); setAddModal(null); };
   const removeFromStack = (id) => { setStack(p => p.filter(s => s.id !== id)); };
-  const openEdit = (c) => { setModalData({ ...c, vialMg: String(c.vialMg), waterMl: String(c.waterMl), dose: String(c.dose) }); setEditModal(c); };
-  const confirmEdit = () => { setStack(p => p.map(s => s.id === editModal.id ? { ...s, vialMg: parseFloat(modalData.vialMg) || s.vialMg, waterMl: parseFloat(modalData.waterMl) || s.waterMl, dose: parseFloat(modalData.dose) || s.dose, unit: modalData.unit || s.unit, frequency: modalData.frequency || s.frequency, timing: modalData.timing || s.timing, timingGroup: modalData.timingGroup || s.timingGroup } : s)); setEditModal(null); };
+  const openEdit = (c) => { setModalData({ ...c, vialMg: String(c.vialMg), waterMl: String(c.waterMl), dose: String(c.dose), addedDate: c.addedDate || '' }); setEditModal(c); };
+  const confirmEdit = () => { setStack(p => p.map(s => s.id === editModal.id ? { ...s, vialMg: parseFloat(modalData.vialMg) || s.vialMg, waterMl: parseFloat(modalData.waterMl) || s.waterMl, dose: parseFloat(modalData.dose) || s.dose, unit: modalData.unit || s.unit, frequency: modalData.frequency || s.frequency, timing: modalData.timing || s.timing, timingGroup: modalData.timingGroup || s.timingGroup, addedDate: modalData.addedDate || s.addedDate || '' } : s)); setEditModal(null); };
 
   const savePriceForCompound = (compoundId, price) => {
     setStack(p => p.map(s => s.id === compoundId ? { ...s, pricePerVial: parseFloat(price) || 0 } : s));
@@ -710,13 +710,30 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
             </div>
           </div>
 
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={S.label}>Timing Group</label>
             <div style={{ ...S.frow, gap: 6 }}>
               {['morning', 'midday', 'evening'].map(g => (
                 <button key={g} onClick={() => setModalData(p => ({ ...p, timingGroup: g }))} style={{ ...S.freqBtn, ...(modalData.timingGroup === g ? S.freqOn : {}) }}>{g}</button>
               ))}
             </div>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <label style={S.label}>Start Date</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type='date' value={modalData.addedDate || ''} onChange={e => setModalData(p => ({ ...p, addedDate: e.target.value }))}
+                style={{ ...S.input, flex: 1, fontSize: 14, colorScheme: 'dark' }} />
+              {!modalData.addedDate && (
+                <button onClick={() => setModalData(p => ({ ...p, addedDate: getToday() }))}
+                  style={{ ...S.lockBtn, ...S.lockOn, fontSize: 10, padding: '8px 12px', whiteSpace: 'nowrap' }}>Today</button>
+              )}
+              {modalData.addedDate && (
+                <button onClick={() => setModalData(p => ({ ...p, addedDate: '' }))}
+                  style={{ ...S.lockBtn, fontSize: 10, padding: '8px 10px' }}>{'\u2715'}</button>
+              )}
+            </div>
+            <p style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginTop: 4 }}>Used for adherence tracking. When did you start this compound?</p>
           </div>
 
           <button onClick={isEdit ? confirmEdit : confirmAdd} style={{ ...S.logBtn, width: '100%', padding: '14px', textAlign: 'center', fontSize: 14 }}>{isEdit ? 'Save Changes' : 'Add to Stack'}</button>
@@ -913,6 +930,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                 <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{c.name}</div>
                 <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 3 }}>
                   {fmtDose(c)} {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}
+                  {c.addedDate && <span style={{ color: T.t3 }}> {'\u00B7'} since {c.addedDate.slice(5)}</span>}
                 </div>
               </div>
               <button onClick={() => openEdit(c)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 6, color: T.t3, fontSize: 13, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u270E'}</button>

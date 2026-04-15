@@ -365,15 +365,20 @@ function LineChartVis({ data, color, height = 180 }) {
 function RecompChart({ weightData, waistData, height = 180 }) {
   const canvasRef = useRef(null); const chartRef = useRef(null);
   useEffect(() => {
-    if (!canvasRef.current || !weightData || weightData.length < 2) return;
+    if (!canvasRef.current || (!weightData?.length && !waistData?.length)) return;
     if (chartRef.current) chartRef.current.destroy();
+    // Merge labels from both datasets and align data
+    const allLabels = [...new Set([...(weightData || []).map(d => d.label), ...(waistData || []).map(d => d.label)])];
+    allLabels.sort();
+    const wMap = Object.fromEntries((weightData || []).map(d => [d.label, d.value]));
+    const waMap = Object.fromEntries((waistData || []).map(d => [d.label, d.value]));
     chartRef.current = new Chart(canvasRef.current, {
       type: "line",
       data: {
-        labels: weightData.map(d => d.label),
+        labels: allLabels,
         datasets: [
-          { label: "Weight (lbs)", data: weightData.map(d => d.value), borderColor: "rgba(0,210,180,0.8)", backgroundColor: "transparent", tension: 0.3, pointRadius: 3, borderWidth: 2, yAxisID: "y" },
-          { label: "Waist (in)", data: waistData.map(d => d.value), borderColor: "rgba(201,168,76,0.8)", backgroundColor: "transparent", tension: 0.3, pointRadius: 3, borderWidth: 2, yAxisID: "y1" },
+          { label: "Weight (lbs)", data: allLabels.map(l => wMap[l] ?? null), borderColor: "rgba(0,210,180,0.8)", backgroundColor: "transparent", tension: 0.3, pointRadius: 3, borderWidth: 2, yAxisID: "y", spanGaps: true },
+          { label: "Waist (in)", data: allLabels.map(l => waMap[l] ?? null), borderColor: "rgba(201,168,76,0.8)", backgroundColor: "transparent", tension: 0.3, pointRadius: 3, borderWidth: 2, yAxisID: "y1", spanGaps: true },
         ]
       },
       options: {
@@ -1295,9 +1300,9 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
   // ── Charts view (default) ──
   const sorted = [...checkins].sort((a, b) => a.date.localeCompare(b.date));
-  const weightData = sorted.map(c => ({ label: c.date.slice(5), value: c.weight }));
-  const waistData = sorted.map(c => ({ label: c.date.slice(5), value: c.waist }));
-  const scoreData = sorted.filter(c => c.analysis?.rateScore).map(c => ({ label: c.date.slice(5), value: c.analysis.rateScore }));
+  const weightData = sorted.filter(c => c.weight != null && parseFloat(c.weight) > 0).map(c => ({ label: c.date.slice(5), value: parseFloat(c.weight) }));
+  const waistData = sorted.filter(c => c.waist != null && parseFloat(c.waist) > 0).map(c => ({ label: c.date.slice(5), value: parseFloat(c.waist) }));
+  const scoreData = sorted.filter(c => c.analysis?.rateScore && c.analysis.rateScore > 0).map(c => ({ label: c.date.slice(5), value: c.analysis.rateScore }));
   const bfData = sorted.filter(c => c.analysis?.bodyFatEstimate).map(c => ({ label: c.date.slice(5), value: parseBF(c.analysis.bodyFatEstimate) })).filter(d => d.value > 0);
 
   const wDelta = weightData.length >= 2 ? weightData[weightData.length - 1].value - weightData[0].value : 0;

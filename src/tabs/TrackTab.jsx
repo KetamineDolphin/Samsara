@@ -111,7 +111,7 @@ function RetaCard({ compound, logged, onLog }) {
 const ROUTE_LABELS = { subq: 'SubQ', im: 'IM', oral: 'Oral', topical: 'Topical', intranasal: 'Nasal', iv: 'IV' };
 const ROUTE_ICONS = { subq: '\uD83D\uDC89', im: '\uD83D\uDC89', oral: '\uD83D\uDC8A', topical: '\u2728', intranasal: '\uD83D\uDCA8', iv: '\uD83C\uDFE5' };
 
-function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheckin }) {
+function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis, onQuickCheckin }) {
   const t = getToday();
   const [routePickerId, setRoutePickerId] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -245,7 +245,16 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
             <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4, marginTop: 6 }}>{g.icon} {g.label}</div>
             {compounds.map(c => {
               const isW = c.frequency === 'weekly';
-              const logged = isW ? logs.find(l => l.cid === c.id && l.date >= getWeekStart()) : logs.find(l => l.cid === c.id && l.date === t);
+              const freqMeta = FREQ_META[c.frequency] || FREQ_META.daily;
+              const expectedPerDay = freqMeta.perDay || 1;
+              const maxPerDay = freqMeta.maxPerDay || 3;
+              const todayLogs = isW
+                ? logs.filter(l => l.cid === c.id && l.date >= getWeekStart())
+                : logs.filter(l => l.cid === c.id && l.date === t);
+              const logged = todayLogs.length > 0 ? todayLogs[todayLogs.length - 1] : null; // most recent
+              const dosesDone = todayLogs.length;
+              const allDosesDone = isW ? dosesDone >= 1 : dosesDone >= expectedPerDay;
+              const atMax = dosesDone >= maxPerDay;
               const cNotes = interactionMap[c.libId] || [];
               if (isW) return <RetaCard key={c.id} compound={c} logged={logged} onLog={onLog} />;
               const libEntry = LIB.find(l => l.id === c.libId) || {};
@@ -264,6 +273,7 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
 
               // Build clean meta line
               const metaParts = [fmtDose(c)];
+              if (maxPerDay > 1) metaParts.push(`${dosesDone}/${maxPerDay}`);
               if (logged && logged.route) metaParts.push(ROUTE_LABELS[logged.route] || logged.route);
               const statusPart = (() => {
                 if (logged && isPeaking) return { text: 'peaking', color: T.teal };
@@ -278,7 +288,7 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
 
               return (
                 <div key={c.id}>
-                  <div style={{ ...S.trackRow, marginBottom: 6, padding: '10px 13px', ...(logged ? { borderColor: 'rgba(92,184,112,0.15)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
+                  <div style={{ ...S.trackRow, marginBottom: 6, padding: '10px 13px', ...(allDosesDone ? { borderColor: 'rgba(92,184,112,0.15)' } : logged ? { borderColor: 'rgba(201,168,76,0.12)' } : {}) }} onTouchStart={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'} onTouchEnd={e => e.currentTarget.style.background = ''}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ ...S.trackName, fontSize: 13 }}>{c.name}</div>
                       <div style={{ fontSize: 10, color: T.t3, marginTop: 2, fontFamily: T.fm, letterSpacing: 1 }}>
@@ -287,9 +297,19 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
                       </div>
                     </div>
                     {logged ? (
-                      <div style={S.loggedBadge}>
-                        <span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 16 }}>{'\u2713'}</span>
-                        <span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {allDosesDone && (
+                          <span style={{ animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block', color: '#5cb870', fontSize: 14 }}>{'\u2713'}</span>
+                        )}
+                        <span style={{ fontSize: 9, color: allDosesDone ? '#5cb870' : T.gold, fontFamily: T.fm }}>{dosesDone}{expectedPerDay > 1 ? `/${expectedPerDay}` : ''}</span>
+                        {!atMax && (
+                          <button onClick={() => {
+                            if (hasMultiRoute) { setRoutePickerId(showingRoutes ? null : c.id); }
+                            else { if (navigator.vibrate) navigator.vibrate(40); onLog(c); }
+                          }} style={{ ...S.logBtn, fontSize: 9, padding: '3px 8px', background: 'rgba(201,168,76,0.06)', borderColor: 'rgba(201,168,76,0.2)' }}>
+                            +
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <button onClick={() => {
@@ -301,7 +321,7 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
                     )}
                   </div>
                   {/* Route picker */}
-                  {showingRoutes && !logged && (
+                  {showingRoutes && !atMax && (
                     <div style={{ display: 'flex', gap: 4, padding: '4px 12px 8px', animation: 'fadeUp .2s ease both' }}>
                       {routes.map(route => (
                         <button key={route} onClick={() => {
@@ -324,6 +344,24 @@ function TodayView({ logs, onLog, stack, onOpenSites, siteAnalysis, onQuickCheck
                       }}>
                         <span style={{ fontSize: 11, color: T.t3 }}>{'\u2715'}</span>
                       </button>
+                    </div>
+                  )}
+                  {/* Dose detail rows with delete */}
+                  {todayLogs.length > 0 && (
+                    <div style={{ paddingLeft: 12, paddingRight: 12, marginTop: -2, marginBottom: 4 }}>
+                      {todayLogs.map((dl, di) => (
+                        <div key={di} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', borderBottom: di < todayLogs.length - 1 ? `1px solid rgba(255,255,255,0.03)` : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 9, color: '#5cb870', fontFamily: T.fm }}>{dl.time}</span>
+                            {dl.route && <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>{ROUTE_LABELS[dl.route] || dl.route}</span>}
+                            <span style={{ fontSize: 8, color: T.t3, fontFamily: T.fm }}>{dl.doseLabel || ''}</span>
+                          </div>
+                          <button onClick={() => { if (navigator.vibrate) navigator.vibrate(20); onDeleteLog(c.id, di); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontSize: 10, color: 'rgba(220,80,80,0.5)' }}>
+                            {'\u2715'}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                   {/* Interaction notes */}
@@ -660,7 +698,6 @@ function TimelineView({ logs, stack, checkins, profile }) {
     timeRange.days.forEach(day => {
       if (day > today) { map[day] = null; return; }
       const dayLogs = logIndex[day] || [];
-      const loggedIds = new Set(dayLogs.map(l => l.cid));
       const dailyExpected = expectedDaily.filter(c => {
         if (c.frequency === 'weekly') return false;
         return true;
@@ -669,8 +706,16 @@ function TimelineView({ logs, stack, checkins, profile }) {
       const weeklyExpected = dayOfWeek === 0 ? expectedWeekly : [];
       const allExpected = [...dailyExpected, ...weeklyExpected];
       if (allExpected.length === 0) { map[day] = dayLogs.length > 0 ? 1 : null; return; }
-      const logged = allExpected.filter(c => loggedIds.has(c.id)).length;
-      map[day] = allExpected.length > 0 ? logged / allExpected.length : 0;
+      // Count doses fulfilled (2x_day needs 2 logs, daily needs 1)
+      let totalExpected = 0;
+      let totalFulfilled = 0;
+      allExpected.forEach(c => {
+        const perDay = (FREQ_META[c.frequency] || {}).perDay || 1;
+        const cLogs = dayLogs.filter(l => l.cid === c.id).length;
+        totalExpected += perDay;
+        totalFulfilled += Math.min(cLogs, perDay);
+      });
+      map[day] = totalExpected > 0 ? totalFulfilled / totalExpected : 0;
     });
     return map;
   }, [timeRange.days, today, logIndex, expectedDaily, expectedWeekly]);
@@ -1107,6 +1152,19 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
     if (route) entry.route = route;
     setLogs(p => [...p, entry]);
   }, [setLogs]);
+
+  const handleDeleteLog = useCallback((cid, todayIndex) => {
+    // Delete the Nth log for this compound on today's date
+    const today = getToday();
+    let count = 0;
+    setLogs(p => p.filter(l => {
+      if (l.cid === cid && l.date === today) {
+        if (count === todayIndex) { count++; return false; }
+        count++;
+      }
+      return true;
+    }));
+  }, [setLogs]);
   const handleNewVial = useCallback(id => { setVials(p => ({ ...p, [id]: { startDate: getToday(), reconDate: getToday() } })); }, [setVials]);
 
   const handleLogSite = useCallback(siteId => {
@@ -1153,7 +1211,7 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
     <div>
       <header style={{ ...S.header, marginBottom: 8 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TRACK</h1><p style={S.sub}>Protocol Management</p></header>
       <div style={{ ...S.segWrap, marginBottom: 12 }}>{[{ k: 'today', l: 'Today' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
-      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('BODY') : null} />}
+      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} onDeleteLog={handleDeleteLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('BODY') : null} />}
       {sv === 'vials' && <VialsView vials={vials} logs={logs} onNewVial={handleNewVial} stack={stack} />}
       {sv === 'timeline' && <TimelineView logs={logs} stack={stack} checkins={checkins} profile={profile} />}
       {sv === 'sites' && <SitesView siteHistory={siteHistory} onLogSite={handleLogSite} stack={stack} siteAnalysis={siteAnalysis} siteLogStep={siteLogStep} siteLogData={siteLogData} onSiteLogStepAction={handleSiteLogStepAction} />}

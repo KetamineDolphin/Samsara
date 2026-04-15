@@ -4,7 +4,7 @@ import T from '../utils/tokens';
 import { CAT_C } from '../utils/tokens';
 import S from '../utils/styles';
 import LIB, { FREQ_META } from '../data/library';
-import { makeId, fmtDose, doseMgOf, usableDoses } from '../utils/helpers';
+import { makeId, fmtDose, doseMgOf, usableDoses, getToday } from '../utils/helpers';
 import { exportAllData, importAllData, clearAllData, getStorageSize, getPhotoStorageSize, getStorageHealth } from '../hooks/useStorage';
 import { analyzeStack, getCompoundInsights } from '../data/interactions';
 import { calculateTrajectory } from '../data/analytics';
@@ -541,7 +541,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   }, [costData.totalDaily, costData.totalYearly, checkins, profile?.targetWeight, profile?.targetWaist]);
 
   const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency === 'intermittent' || p.frequency === 'as_needed' ? 'daily' : p.frequency, timing: p.timing, timingGroup: 'morning', notes: '' }); setAddModal(p); };
-  const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning' }; setStack(p => [...p, nd]); setAddModal(null); };
+  const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning', addedDate: getToday() }; setStack(p => [...p, nd]); setAddModal(null); };
   const removeFromStack = (id) => { setStack(p => p.filter(s => s.id !== id)); };
   const openEdit = (c) => { setModalData({ ...c, vialMg: String(c.vialMg), waterMl: String(c.waterMl), dose: String(c.dose) }); setEditModal(c); };
   const confirmEdit = () => { setStack(p => p.map(s => s.id === editModal.id ? { ...s, vialMg: parseFloat(modalData.vialMg) || s.vialMg, waterMl: parseFloat(modalData.waterMl) || s.waterMl, dose: parseFloat(modalData.dose) || s.dose, unit: modalData.unit || s.unit, frequency: modalData.frequency || s.frequency, timing: modalData.timing || s.timing, timingGroup: modalData.timingGroup || s.timingGroup } : s)); setEditModal(null); };
@@ -704,7 +704,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           <div style={{ marginBottom: 16 }}>
             <label style={S.label}>Frequency</label>
             <div style={{ ...S.frow, gap: 6 }}>
-              {Object.entries(FREQ_META).filter(([k]) => ['daily', '2x_week', 'weekly'].includes(k)).map(([k, v]) => (
+              {Object.entries(FREQ_META).filter(([k]) => ['daily', '2x_day', '2x_week', 'weekly'].includes(k)).map(([k, v]) => (
                 <button key={k} onClick={() => setModalData(p => ({ ...p, frequency: k }))} style={{ ...S.freqBtn, ...(modalData.frequency === k ? S.freqOn : {}) }}>{v.label}</button>
               ))}
             </div>

@@ -478,26 +478,47 @@ export function getAdherenceStats(logs, stack, days) {
   );
 
   // ── Per-compound stats ──
+  // Use each compound's addedDate if available so we don't penalise
+  // compounds that were added mid-protocol.  For legacy compounds
+  // without addedDate, fall back to the first log date for that
+  // compound, or the start of the lookback window.
   const byCompound = stack.map((compound) => {
     const freq = compound.frequency || 'daily';
-    const compLogs = safeLogs.filter(
-      (l) => (l.cid === compound.id || l.compoundId === compound.id) && l.date >= startDate && l.date <= today
+
+    // Determine the effective start date for this compound
+    const allCompLogs = safeLogs.filter(
+      (l) => l.cid === compound.id || l.compoundId === compound.id
     );
+    const firstLogDate = allCompLogs.length > 0
+      ? allCompLogs.reduce((min, l) => l.date < min ? l.date : min, allCompLogs[0].date)
+      : null;
+    const compStart = compound.addedDate || firstLogDate || startDate;
+    // Effective window start is the later of lookback start and compound start
+    const effectiveStart = compStart > startDate ? compStart : startDate;
+
+    const compLogs = allCompLogs.filter(
+      (l) => l.date >= effectiveStart && l.date <= today
+    );
+
+    // Count actual days in this compound's active window
+    const activeDays = Math.max(1, Math.floor((new Date(today) - new Date(effectiveStart)) / 86400000) + 1);
 
     let expected = 0;
     if (freq === 'daily') {
-      expected = lookback;
+      expected = activeDays;
+    } else if (freq === '2x_day') {
+      expected = activeDays * 2;
     } else if (freq === 'weekly') {
-      expected = Math.floor(lookback / 7);
+      expected = Math.max(1, Math.floor(activeDays / 7));
     } else if (freq === '2x_week') {
-      expected = Math.floor(lookback / 7) * 2;
+      expected = Math.max(1, Math.floor(activeDays / 7) * 2);
     } else {
       // intermittent / as_needed: no strict expectation
       expected = compLogs.length; // 100% by definition
     }
 
     const uniqueDays = new Set(compLogs.map((l) => l.date)).size;
-    const actual = freq === 'daily' ? uniqueDays : compLogs.length;
+    const actual = freq === '2x_day' ? compLogs.length : freq === 'daily' ? uniqueDays : compLogs.length;
     const pct = expected > 0 ? Math.min(100, Math.round((actual / expected) * 100)) : 100;
     const missed = Math.max(0, expected - actual);
 
@@ -523,7 +544,14 @@ export function getAdherenceStats(logs, stack, days) {
     for (let i = 0; i < lookback; i++) {
       const d = addDays(today, -i);
       const dayLogs = safeLogs.filter((l) => l.date === d);
-      const allLogged = dailyCompounds.every(
+      // Only check compounds that were active on this day
+      const activeOnDay = dailyCompounds.filter(c => {
+        const cStart = c.addedDate || startDate;
+        return d >= cStart;
+      });
+      // If no compounds were active yet on this day, skip (don't break streak)
+      if (activeOnDay.length === 0) continue;
+      const allLogged = activeOnDay.every(
         (c) => dayLogs.some((l) => l.cid === c.id || l.compoundId === c.id)
       );
 
@@ -546,13 +574,19 @@ export function getAdherenceStats(logs, stack, days) {
     for (let i = 0; i < lookback; i++) {
       const d = addDays(today, -i);
       const dow = new Date(d).getDay();
+      // Only count compounds that were active on this day
+      const activeOnDay = dailyCompounds.filter(c => {
+        const cStart = c.addedDate || startDate;
+        return d >= cStart;
+      });
+      if (activeOnDay.length === 0) continue;
       dayCounts[dow]++;
 
       const dayLogs = safeLogs.filter((l) => l.date === d);
-      const logged = dailyCompounds.filter(
+      const logged = activeOnDay.filter(
         (c) => dayLogs.some((l) => l.cid === c.id || l.compoundId === c.id)
       ).length;
-      dayTotals[dow] += logged / dailyCompounds.length;
+      dayTotals[dow] += logged / activeOnDay.length;
     }
   }
 

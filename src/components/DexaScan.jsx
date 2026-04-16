@@ -572,7 +572,7 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
 
       const payload = {
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 3500,
+        max_tokens: 4500,
         system: DEXA_PROMPT,
         messages: [{
           role: 'user',

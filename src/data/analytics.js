@@ -306,6 +306,39 @@ export function calculateTrajectory(checkins, targetWeight, targetWaist) {
     }
   }
 
+  // Build projection data points for chart overlays
+  const weightProjection = [];
+  const waistProjection = [];
+  if (wPts.length >= 5) {
+    const xs = wPts.map((c) => diffDays(origin, c.date));
+    const ys = wPts.map((c) => c.weight);
+    const reg = linReg(xs, ys);
+    // Add projected line from latest data point to target (or 30 days forward)
+    const lastDay = xs[xs.length - 1];
+    const endDay = daysToTargetWeight ? todayDay + daysToTargetWeight : todayDay + 30;
+    const steps = Math.min(8, Math.max(3, Math.ceil((endDay - lastDay) / 7)));
+    for (let i = 0; i <= steps; i++) {
+      const d = lastDay + ((endDay - lastDay) * i / steps);
+      const projected = reg.slope * d + reg.intercept;
+      const dateStr = addDays(origin, Math.round(d));
+      weightProjection.push({ label: dateStr.slice(5), value: round2(projected) });
+    }
+  }
+  if (waPts.length >= 5) {
+    const xs = waPts.map((c) => diffDays(origin, c.date));
+    const ys = waPts.map((c) => c.waist);
+    const reg = linReg(xs, ys);
+    const lastDay = xs[xs.length - 1];
+    const endDay = daysToTargetWaist ? todayDay + daysToTargetWaist : todayDay + 30;
+    const steps = Math.min(8, Math.max(3, Math.ceil((endDay - lastDay) / 7)));
+    for (let i = 0; i <= steps; i++) {
+      const d = lastDay + ((endDay - lastDay) * i / steps);
+      const projected = reg.slope * d + reg.intercept;
+      const dateStr = addDays(origin, Math.round(d));
+      waistProjection.push({ label: dateStr.slice(5), value: round2(projected) });
+    }
+  }
+
   return {
     weightTrend,
     waistTrend,
@@ -313,6 +346,8 @@ export function calculateTrajectory(checkins, targetWeight, targetWaist) {
     daysToTargetWaist,
     projectedWeightDate,
     projectedWaistDate,
+    weightProjection,
+    waistProjection,
   };
 }
 

@@ -102,7 +102,9 @@ export const DEFAULT_STACK = [];
 export const FREQ_META = {
   daily: { label: 'Daily', perWeek: 7, perDay: 1, maxPerDay: 3 },
   '2x_day': { label: '2x Daily', perWeek: 14, perDay: 2, maxPerDay: 3 },
+  '3x_day': { label: '3x Daily', perWeek: 21, perDay: 3, maxPerDay: 3 },
   '2x_week': { label: '2x Weekly', perWeek: 2, perDay: 0 },
+  '3x_week': { label: '3x Weekly', perWeek: 3, perDay: 0 },
   weekly: { label: 'Weekly', perWeek: 1, perDay: 0 },
   intermittent: { label: 'Intermittent', perWeek: 3.5, perDay: 0 },
   as_needed: { label: 'As Needed', perWeek: 1, perDay: 0 },

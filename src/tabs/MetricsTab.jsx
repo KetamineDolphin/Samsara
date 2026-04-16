@@ -345,7 +345,7 @@ function ChartCard({ title, rightLabel, subtitle, children, height = 180 }) {
   );
 }
 
-function LineChartVis({ data, color, height = 180 }) {
+function LineChartVis({ data, color, height = 180, projectionData }) {
   const canvasRef = useRef(null); const chartRef = useRef(null);
   useEffect(() => {
     if (!canvasRef.current || !data || data.length < 2) return;
@@ -353,12 +353,49 @@ function LineChartVis({ data, color, height = 180 }) {
     const ctx = canvasRef.current.getContext("2d");
     const grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, color.replace("0.8", "0.3")); grad.addColorStop(1, "transparent");
+
+    // Merge actual + projection labels for shared x-axis
+    const hasProj = projectionData && projectionData.length >= 2;
+    const actualLabels = data.map(d => d.label);
+    const projLabels = hasProj ? projectionData.map(d => d.label) : [];
+    const allLabels = [...new Set([...actualLabels, ...projLabels])];
+    allLabels.sort();
+    const actualMap = Object.fromEntries(data.map(d => [d.label, d.value]));
+    const projMap = hasProj ? Object.fromEntries(projectionData.map(d => [d.label, d.value])) : {};
+
+    // Bridge: last actual point connects to projection
+    const lastActualLabel = actualLabels[actualLabels.length - 1];
+    const lastActualValue = actualMap[lastActualLabel];
+    const projBridged = allLabels.map(l => {
+      if (projMap[l] != null) return projMap[l];
+      if (l === lastActualLabel) return lastActualValue; // bridge point
+      return null;
+    });
+
+    const datasets = [{
+      data: allLabels.map(l => actualMap[l] ?? null),
+      borderColor: color, backgroundColor: grad, fill: true, tension: 0.3,
+      pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: color, borderWidth: 2, spanGaps: true
+    }];
+
+    if (hasProj) {
+      datasets.push({
+        data: projBridged,
+        borderColor: color.replace("0.8", "0.4"),
+        backgroundColor: "transparent", fill: false, tension: 0.3,
+        pointRadius: 3, pointHoverRadius: 5,
+        pointBackgroundColor: color.replace("0.8", "0.4"),
+        borderWidth: 2, borderDash: [6, 4], spanGaps: true,
+        pointStyle: 'triangle',
+      });
+    }
+
     chartRef.current = new Chart(ctx, {
-      type: "line", data: { labels: data.map(d => d.label), datasets: [{ data: data.map(d => d.value), borderColor: color, backgroundColor: grad, fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: color, borderWidth: 2 }] },
-      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: "rgba(15,17,20,0.95)", borderColor: T.gold, borderWidth: 1, titleFont: { family: "DM Mono" }, bodyFont: { family: "DM Mono" }, padding: 8 } }, scales: { x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 9 }, maxRotation: 0 } }, y: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 10 } } } } }
+      type: "line", data: { labels: allLabels, datasets },
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: { display: hasProj, labels: hasProj ? { color: T.t3, font: { family: "DM Mono", size: 9 }, boxWidth: 12, generateLabels: () => [{ text: 'Actual', fillStyle: color, strokeStyle: color, lineWidth: 2 }, { text: 'Projected', fillStyle: 'transparent', strokeStyle: color.replace("0.8", "0.4"), lineWidth: 2, lineDash: [6, 4] }] } : undefined }, tooltip: { backgroundColor: "rgba(15,17,20,0.95)", borderColor: T.gold, borderWidth: 1, titleFont: { family: "DM Mono" }, bodyFont: { family: "DM Mono" }, padding: 8 } }, scales: { x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 9 }, maxRotation: 0 } }, y: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 10 } } } } }
     });
     return () => { if (chartRef.current) chartRef.current.destroy(); };
-  }, [data, color, height]);
+  }, [data, color, height, projectionData]);
   return <canvas ref={canvasRef} style={{ width: "100%", height }} />;
 }
 
@@ -1360,10 +1397,10 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
           )}
 
           <ChartCard title="Body Weight" rightLabel={weightData.length ? `${weightData[weightData.length - 1].value} lbs ${'\u00B7'} ${wDelta >= 0 ? '+' : ''}${wDelta.toFixed(1)}` : ''}>
-            <LineChartVis data={weightData} color="rgba(0,210,180,0.8)" />
+            <LineChartVis data={weightData} color="rgba(0,210,180,0.8)" projectionData={trajectory.weightProjection} />
           </ChartCard>
           <ChartCard title="Waist" rightLabel={waistData.length ? `${waistData[waistData.length - 1].value}" ${'\u00B7'} ${waDelta >= 0 ? '+' : ''}${waDelta.toFixed(1)}"` : ''}>
-            <LineChartVis data={waistData} color="rgba(201,168,76,0.8)" />
+            <LineChartVis data={waistData} color="rgba(201,168,76,0.8)" projectionData={trajectory.waistProjection} />
           </ChartCard>
           <ChartCard title="Recomp Signal" subtitle="Weight vs Waist - the real metric">
             <RecompChart weightData={weightData} waistData={waistData} />

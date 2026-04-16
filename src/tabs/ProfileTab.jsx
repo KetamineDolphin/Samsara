@@ -383,6 +383,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   const [activePieCat, setActivePieCat] = useState(null);
   const [editProfileModal, setEditProfileModal] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null);
+  const [stackCollapsed, setStackCollapsed] = useState(true);
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [priceInput, setPriceInput] = useState('');
   const [activeCostId, setActiveCostId] = useState(null);
@@ -540,8 +541,8 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     return { ninetyDay, oneYear, costToWeightGoal, costToWaistGoal };
   }, [costData.totalDaily, costData.totalYearly, checkins, profile?.targetWeight, profile?.targetWaist]);
 
-  const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency === 'intermittent' || p.frequency === 'as_needed' ? 'daily' : p.frequency, timing: p.timing, timingGroup: 'morning', notes: '', addedDate: getToday() }); setAddModal(p); };
-  const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning', addedDate: modalData.addedDate || getToday() }; setStack(p => [...p, nd]); setAddModal(null); };
+  const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency === 'intermittent' || p.frequency === 'as_needed' ? 'daily' : p.frequency, timing: p.timing, timingGroup: 'morning', notes: '', addedDate: getToday() }); setAddModal(p); window.scrollTo(0, 0); };
+  const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning', addedDate: modalData.addedDate || getToday() }; setStack(p => [...p, nd]); setAddModal(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const removeFromStack = (id) => { setStack(p => p.filter(s => s.id !== id)); };
   const openEdit = (c) => { setModalData({ ...c, vialMg: String(c.vialMg), waterMl: String(c.waterMl), dose: String(c.dose), addedDate: c.addedDate || '' }); setEditModal(c); };
   const confirmEdit = () => { setStack(p => p.map(s => s.id === editModal.id ? { ...s, vialMg: parseFloat(modalData.vialMg) || s.vialMg, waterMl: parseFloat(modalData.waterMl) || s.waterMl, dose: parseFloat(modalData.dose) || s.dose, unit: modalData.unit || s.unit, frequency: modalData.frequency || s.frequency, timing: modalData.timing || s.timing, timingGroup: modalData.timingGroup || s.timingGroup, addedDate: modalData.addedDate || s.addedDate || '' } : s)); setEditModal(null); };
@@ -659,86 +660,81 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   const storageHealth = getStorageHealth();
 
   // Full-screen scrollable modal
-  const renderModal = (isEdit) => {
+  const renderCompoundScreen = (isEdit) => {
+    const goBack = () => { setAddModal(null); setEditModal(null); };
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.85)' }} onClick={() => { setAddModal(null); setEditModal(null); }}>
-        <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingTop: 'env(safe-area-inset-top, 44px)', paddingLeft: 16, paddingRight: 16, paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 80px)', maxWidth: 480, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-            <button onClick={() => { setAddModal(null); setEditModal(null); }}
-              style={{ width: 32, height: 32, borderRadius: 16, background: 'rgba(255,255,255,0.06)', border: 'none', color: T.t2, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {'\u2715'}
-            </button>
+      <div style={{ animation: 'fadeUp .3s ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <button onClick={goBack} style={{ background: 'none', border: 'none', color: T.t2, fontSize: 13, fontFamily: T.fm, cursor: 'pointer', padding: 0 }}>{'\u2190'} Back</button>
+          <h3 style={{ fontFamily: T.fd, fontSize: 20, fontWeight: 300, color: T.t1, margin: 0 }}>{isEdit ? 'Edit' : 'Add'} {modalData.name}</h3>
+        </div>
+
+        {/* Vial + Water + Dose */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Vial (mg)</label>
+            <input type='number' inputMode='decimal' value={modalData.vialMg || ''} onChange={e => setModalData(p => ({ ...p, vialMg: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 14, padding: '8px 10px' }} />
           </div>
-
-          <h3 style={{ fontFamily: T.fd, fontSize: 24, fontWeight: 300, color: T.t1, marginBottom: 20 }}>{isEdit ? 'Edit' : 'Add'} {modalData.name}</h3>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>Vial (mg)</label>
-            <input type='number' inputMode='decimal' value={modalData.vialMg || ''} onChange={e => setModalData(p => ({ ...p, vialMg: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 15 }} />
+          <div style={{ flex: 1 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Water (ml)</label>
+            <input type='number' inputMode='decimal' value={modalData.waterMl || ''} onChange={e => setModalData(p => ({ ...p, waterMl: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 14, padding: '8px 10px' }} />
           </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>BAC Water (ml)</label>
-            <input type='number' inputMode='decimal' value={modalData.waterMl || ''} onChange={e => setModalData(p => ({ ...p, waterMl: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 15 }} />
+          <div style={{ flex: 1 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Dose</label>
+            <input type='number' inputMode='decimal' value={modalData.dose || ''} onChange={e => setModalData(p => ({ ...p, dose: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 14, padding: '8px 10px' }} />
           </div>
+        </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>Dose</label>
-            <input type='number' inputMode='decimal' value={modalData.dose || ''} onChange={e => setModalData(p => ({ ...p, dose: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 15 }} />
+        {/* Timing + Unit */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Timing</label>
+            <input type='text' value={modalData.timing || ''} onChange={e => setModalData(p => ({ ...p, timing: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 14, padding: '8px 10px' }} />
           </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>Timing</label>
-            <input type='text' value={modalData.timing || ''} onChange={e => setModalData(p => ({ ...p, timing: e.target.value }))} style={{ ...S.input, width: '100%', fontSize: 15 }} />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>Unit</label>
-            <div style={S.togGrp}>
+          <div style={{ flexShrink: 0 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Unit</label>
+            <div style={{ ...S.togGrp, gap: 0 }}>
               {['mcg', 'mg'].map(u => (
-                <button key={u} onClick={() => setModalData(p => ({ ...p, unit: u }))} style={{ ...S.togBtn, ...(modalData.unit === u ? S.togOn : {}) }}>{u}</button>
+                <button key={u} onClick={() => setModalData(p => ({ ...p, unit: u }))} style={{ ...S.togBtn, ...(modalData.unit === u ? S.togOn : {}), padding: '7px 12px', fontSize: 12 }}>{u}</button>
               ))}
             </div>
           </div>
+        </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>Frequency</label>
-            <div style={{ ...S.frow, gap: 6 }}>
-              {Object.entries(FREQ_META).filter(([k]) => ['daily', '2x_day', '2x_week', 'weekly'].includes(k)).map(([k, v]) => (
-                <button key={k} onClick={() => setModalData(p => ({ ...p, frequency: k }))} style={{ ...S.freqBtn, ...(modalData.frequency === k ? S.freqOn : {}) }}>{v.label}</button>
-              ))}
-            </div>
+        {/* Frequency */}
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ ...S.label, marginBottom: 3 }}>Frequency</label>
+          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {Object.entries(FREQ_META).filter(([k]) => ['daily', '2x_day', '3x_day', '2x_week', '3x_week', 'weekly'].includes(k)).map(([k, v]) => (
+              <button key={k} onClick={() => setModalData(p => ({ ...p, frequency: k }))} style={{ ...S.freqBtn, ...(modalData.frequency === k ? S.freqOn : {}), flex: 1, padding: '6px 2px', fontSize: 9, minWidth: 0 }}>{v.label}</button>
+            ))}
           </div>
+        </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={S.label}>Timing Group</label>
-            <div style={{ ...S.frow, gap: 6 }}>
+        {/* Timing Group + Start Date */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Timing Group</label>
+            <div style={{ display: 'flex', gap: 3 }}>
               {['morning', 'midday', 'evening'].map(g => (
-                <button key={g} onClick={() => setModalData(p => ({ ...p, timingGroup: g }))} style={{ ...S.freqBtn, ...(modalData.timingGroup === g ? S.freqOn : {}) }}>{g}</button>
+                <button key={g} onClick={() => setModalData(p => ({ ...p, timingGroup: g }))} style={{ ...S.freqBtn, ...(modalData.timingGroup === g ? S.freqOn : {}), flex: 1, padding: '6px 2px', fontSize: 10 }}>{g}</button>
               ))}
             </div>
           </div>
-
-          <div style={{ marginBottom: 24 }}>
-            <label style={S.label}>Start Date</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ ...S.label, marginBottom: 3 }}>Start Date</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <input type='date' value={modalData.addedDate || ''} onChange={e => setModalData(p => ({ ...p, addedDate: e.target.value }))}
-                style={{ ...S.input, flex: 1, fontSize: 14, colorScheme: 'dark' }} />
-              {!modalData.addedDate && (
-                <button onClick={() => setModalData(p => ({ ...p, addedDate: getToday() }))}
-                  style={{ ...S.lockBtn, ...S.lockOn, fontSize: 10, padding: '8px 12px', whiteSpace: 'nowrap' }}>Today</button>
-              )}
+                style={{ ...S.input, flex: 1, fontSize: 12, padding: '6px 8px', colorScheme: 'dark' }} />
               {modalData.addedDate && (
                 <button onClick={() => setModalData(p => ({ ...p, addedDate: '' }))}
-                  style={{ ...S.lockBtn, fontSize: 10, padding: '8px 10px' }}>{'\u2715'}</button>
+                  style={{ ...S.lockBtn, fontSize: 9, padding: '6px 8px' }}>{'\u2715'}</button>
               )}
             </div>
-            <p style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginTop: 4 }}>Used for adherence tracking. When did you start this compound?</p>
           </div>
-
-          <button onClick={isEdit ? confirmEdit : confirmAdd} style={{ ...S.logBtn, width: '100%', padding: '14px', textAlign: 'center', fontSize: 14 }}>{isEdit ? 'Save Changes' : 'Add to Stack'}</button>
-          <div style={{ height: 40 }} />
         </div>
+
+        <button onClick={() => { isEdit ? confirmEdit() : confirmAdd(); }} style={{ ...S.logBtn, width: '100%', padding: '12px', textAlign: 'center', fontSize: 14 }}>{isEdit ? 'Save Changes' : 'Add to Stack'}</button>
       </div>
     );
   };
@@ -841,6 +837,10 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     </div>
   );
 
+  if (addModal || editModal) {
+    return renderCompoundScreen(!!editModal);
+  }
+
   return (
     <div style={{ animation: 'fadeUp .5s ease both' }}>
       <header style={{ ...S.header, marginBottom: 16 }}><h1 style={{ ...S.brand, fontSize: 20 }}>PROFILE</h1><p style={S.sub}>Stack & Settings</p></header>
@@ -921,23 +921,39 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm }}>Active Compounds</div>
-          <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>{stack.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fm, fontWeight: 600 }}>{stack.length}</span>
+            {stack.length > 3 && (
+              <button onClick={() => setStackCollapsed(p => !p)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 6, color: T.t3, fontSize: 9, cursor: 'pointer', padding: '3px 8px', fontFamily: T.fm, letterSpacing: 0.5, transition: 'all .2s' }}>
+                {stackCollapsed ? 'Show All' : 'Collapse'}
+              </button>
+            )}
+          </div>
         </div>
-        {stack.map(c => { const cc = CAT_C[LIB.find(l => l.id === c.libId)?.category] || T.gold;
-          return (
-            <div key={c.id} style={{ ...S.card, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${cc}`, transition: 'all .2s' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{c.name}</div>
-                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 3 }}>
-                  {fmtDose(c)} {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}
-                  {c.addedDate && <span style={{ color: T.t3 }}> {'\u00B7'} since {c.addedDate.slice(5)}</span>}
+        <div style={{ maxHeight: stackCollapsed && stack.length > 3 ? 210 : 'none', overflowY: stackCollapsed && stack.length > 3 ? 'auto' : 'visible', transition: 'max-height .3s ease', WebkitOverflowScrolling: 'touch', borderRadius: 10, position: 'relative' }}>
+          {stack.map(c => { const cc = CAT_C[LIB.find(l => l.id === c.libId)?.category] || T.gold;
+            return (
+              <div key={c.id} style={{ ...S.card, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${cc}`, transition: 'all .2s' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 3 }}>
+                    {fmtDose(c)} {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}
+                    {c.addedDate && <span style={{ color: T.t3 }}> {'\u00B7'} since {c.addedDate.slice(5)}</span>}
+                  </div>
                 </div>
+                <button onClick={() => openEdit(c)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 6, color: T.t3, fontSize: 13, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u270E'}</button>
+                <button onClick={() => removeFromStack(c.id)} style={{ background: 'none', border: '1px solid rgba(220,80,80,0.15)', borderRadius: 6, color: 'rgba(220,80,80,0.45)', fontSize: 12, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u2715'}</button>
               </div>
-              <button onClick={() => openEdit(c)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 6, color: T.t3, fontSize: 13, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u270E'}</button>
-              <button onClick={() => removeFromStack(c.id)} style={{ background: 'none', border: '1px solid rgba(220,80,80,0.15)', borderRadius: 6, color: 'rgba(220,80,80,0.45)', fontSize: 12, cursor: 'pointer', padding: '4px 8px', transition: 'all .2s' }}>{'\u2715'}</button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        {stackCollapsed && stack.length > 3 && (
+          <div style={{ textAlign: 'center', padding: '4px 0 8px', background: 'linear-gradient(180deg, transparent, rgba(15,17,20,0.95) 40%)', marginTop: -20, position: 'relative', zIndex: 1 }}>
+            <button onClick={() => setStackCollapsed(false)} style={{ background: 'none', border: 'none', color: T.t3, fontSize: 10, fontFamily: T.fm, cursor: 'pointer', letterSpacing: 0.5, padding: '4px 12px' }}>
+              {'\u25BC'} {stack.length - 3} more compounds
+            </button>
+          </div>
+        )}
 
         {/* Protocol Intelligence */}
         {stackAnalysis && stack.length > 0 && (() => {
@@ -1346,18 +1362,20 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
       </div>}
 
       {sv === 'library' && <div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: T.t3, pointerEvents: 'none' }}>{'\u2315'}</span>
-            <input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="Search compounds..." style={{ ...S.input, width: '100%', fontSize: 14, padding: '11px 14px 11px 34px', background: 'rgba(0,0,0,0.3)', color: T.t1, borderRadius: 12 }} />
+        <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#0a0b0d', paddingTop: 4, paddingBottom: 8, marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: T.t3, pointerEvents: 'none' }}>{'\u2315'}</span>
+              <input type='text' value={search} onChange={e => setSearch(e.target.value)} placeholder="Search compounds..." style={{ ...S.input, width: '100%', fontSize: 14, padding: '11px 14px 11px 34px', background: 'rgba(0,0,0,0.3)', color: T.t1, borderRadius: 12 }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <button onClick={() => setLibZoom(z => Math.max(z - 1, -2))} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 13, color: libZoom <= -2 ? T.border : T.t2, cursor: libZoom <= -2 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>A-</button>
+              <button onClick={() => setLibZoom(z => Math.min(z + 1, 4))} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 13, color: libZoom >= 4 ? T.border : T.t2, cursor: libZoom >= 4 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>A+</button>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            <button onClick={() => setLibZoom(z => Math.max(z - 1, -2))} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 13, color: libZoom <= -2 ? T.border : T.t2, cursor: libZoom <= -2 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>A-</button>
-            <button onClick={() => setLibZoom(z => Math.min(z + 1, 4))} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid ' + T.border, borderRadius: 8, width: 32, height: 36, fontSize: 13, color: libZoom >= 4 ? T.border : T.t2, cursor: libZoom >= 4 ? 'default' : 'pointer', fontFamily: T.fm, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>A+</button>
-          </div>
+          <div style={{ ...S.pills, marginBottom: 8, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4, gap: 6 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12 + libZoom, borderRadius: 10, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
+          <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 2 }}>{filtered.length} compound{filtered.length !== 1 ? 's' : ''}{cat !== 'All' ? ` in ${cat}` : ''}</div>
         </div>
-        <div style={{ ...S.pills, marginBottom: 14, justifyContent: 'flex-start', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4, gap: 6 }}>{cats.map(c => <button key={c} onClick={() => setCat(c)} style={{ ...S.pill, whiteSpace: 'nowrap', fontSize: 12 + libZoom, borderRadius: 10, ...(cat === c ? S.pillOn : {}) }}>{c}</button>)}</div>
-        <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 10 }}>{filtered.length} compound{filtered.length !== 1 ? 's' : ''}{cat !== 'All' ? ` in ${cat}` : ''}</div>
         {filtered.map(p => { const cc = CAT_C[p.category] || T.gold; const added = inStack.has(p.id); const z = libZoom;
           const insights = stack.length > 0 ? getCompoundInsights(p.id, stack, LIB) : [];
           const hasSynergy = insights.some(r => r.type === 'synergy');
@@ -1628,8 +1646,6 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
         </div>
       </div>}
 
-      {addModal && renderModal(false)}
-      {editModal && renderModal(true)}
       {priceImportModal && renderPriceImportModal()}
 
       {editProfileModal && (

@@ -612,18 +612,43 @@ export default function BodyTab({
   /* --- view state --- */
   const [activeView, setActiveView] = useState('Log');
   const [step, setStep] = useState(1);
-  // Pre-fill stats from last checkin if available
+  // Pre-fill stats from last checkin if available.
+  // Day number is DERIVED from profile.startDate + check-in date — no manual entry needed.
+  // Fallback order when deriving day: (1) profile.startDate → today diff + 1,
+  //                                    (2) last checkin day + 7, (3) empty.
   const lastCheckin = checkins.length > 0 ? checkins[checkins.length - 1] : null;
-  const [stats, setStats] = useState(() => {
-    const dayNum = lastCheckin ? String((parseInt(lastCheckin.day) || 0) + 7) : '';
-    return { date: getToday(), day: dayNum, weight: '', waist: '' };
-  });
+  const computeDay = useCallback((checkinDate) => {
+    if (profile?.startDate) {
+      try {
+        const start = new Date(profile.startDate + 'T00:00:00');
+        const target = new Date((checkinDate || getToday()) + 'T00:00:00');
+        const diff = Math.floor((target - start) / 86400000);
+        // Day 1 = start date itself; clamp at 1 so retroactive dates can't go below.
+        return diff >= 0 ? String(diff + 1) : String(Math.max(1, diff + 1));
+      } catch { /* fall through */ }
+    }
+    if (lastCheckin) return String((parseInt(lastCheckin.day) || 0) + 7);
+    return '';
+  }, [profile?.startDate, lastCheckin]);
+
+  const [stats, setStats] = useState(() => ({
+    date: getToday(),
+    day: computeDay(getToday()),
+    weight: '',
+    waist: '',
+  }));
+
+  // Keep the derived day in sync if the user changes the check-in date or profile.startDate loads late.
+  useEffect(() => {
+    setStats(p => ({ ...p, day: computeDay(p.date) }));
+  }, [computeDay]);
+
   const hasLastStats = lastCheckin && lastCheckin.weight && lastCheckin.waist;
   const prefillFromLast = useCallback(() => {
     if (!lastCheckin) return;
-    const dayNum = String((parseInt(lastCheckin.day) || 0) + 7);
-    setStats({ date: getToday(), day: dayNum, weight: String(lastCheckin.weight), waist: String(lastCheckin.waist) });
-  }, [lastCheckin]);
+    const today = getToday();
+    setStats({ date: today, day: computeDay(today), weight: String(lastCheckin.weight), waist: String(lastCheckin.waist) });
+  }, [lastCheckin, computeDay]);
   const [photos, setPhotos] = useState({ front: null, side: null, back: null, flex: null });
   const [thumbs, setThumbs] = useState({ front: null, side: null, back: null, flex: null });
   const [compressing, setCompressing] = useState(null);
@@ -1273,10 +1298,19 @@ export default function BodyTab({
               </div>
             )}
             <div style={{ ...S.card, padding: '16px', marginBottom: 14 }}>
-              {/* Day Number — always manual */}
+              {/* Day Number — auto-derived from profile.startDate. Fallback to manual entry if no start date on file. */}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ ...S.label, fontSize: 10, marginBottom: 6 }}>Day Number</label>
-                <input type="number" inputMode="decimal" value={stats.day} onChange={e => setStats(p => ({ ...p, day: e.target.value }))} style={{ ...S.input, width: '100%' }} />
+                {profile?.startDate ? (
+                  <div style={{ ...S.input, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                    <span style={{ color: T.t1, fontFamily: T.fm, fontWeight: 600 }}>{stats.day ? `Day ${stats.day}` : '—'}</span>
+                    <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fb, fontWeight: 500, letterSpacing: 0.3 }}>
+                      auto · started {profile.startDate.slice(5)}
+                    </span>
+                  </div>
+                ) : (
+                  <input type="number" inputMode="decimal" value={stats.day} onChange={e => setStats(p => ({ ...p, day: e.target.value }))} placeholder="e.g. 1" style={{ ...S.input, width: '100%' }} />
+                )}
               </div>
               {/* Weight — with AI estimate toggle */}
               <div style={{ marginBottom: 14 }}>

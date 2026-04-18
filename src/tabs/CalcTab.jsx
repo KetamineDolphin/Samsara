@@ -182,7 +182,7 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
     <div style={{ animation: "fadeUp .5s ease both" }}>
       <header style={{ ...S.header, marginBottom: 16 }}><SamsaraSymbol size={44} detail="full" /><h1 style={{ ...S.brand, marginTop: -2 }}>SAMSARA</h1><p style={{ ...S.sub, marginTop: 2 }}>Peptide Calculator</p></header>
       {presets.length > 0 && <div style={{ marginBottom: 21 }}>
-        <div style={{ fontSize: 9, letterSpacing: 3, color: T.t3, fontFamily: T.fm, textTransform: 'uppercase', textAlign: 'center', marginBottom: 8 }}>Presets</div>
+        <div style={{ fontSize: 10, letterSpacing: 1.8, fontWeight: 700, color: T.t3, fontFamily: T.fb, textTransform: 'uppercase', textAlign: 'center', marginBottom: 10 }}>Presets</div>
         <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, padding: '9px 16px', ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>
       </div>}
       {/* First-use guidance */}
@@ -193,11 +193,11 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
         </div>
       )}
       <div style={S.card}>
-        <div style={S.field}><label style={S.label}>Vial Size</label><div style={S.frow}><input type="number" inputMode="decimal" value={vialMg} onChange={e => set("vialMg", e.target.value)} style={S.input} /><span style={S.tag}>mg</span></div></div>
+        <div style={S.field}><label style={S.label}>Vial Size</label><div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={vialMg} onChange={e => set("vialMg", e.target.value)} style={{ ...S.input, minWidth: 0 }} /><span style={{ ...S.tag, flexShrink: 0 }}>mg</span></div></div>
         <div style={S.divider} />
-        <div style={S.field}><label style={S.label}>Bacteriostatic Water</label><div style={S.frow}><input type="number" inputMode="decimal" value={waterMl} onChange={e => { if (!waterLocked) set("waterMl", e.target.value) }} readOnly={waterLocked} style={{ ...S.input, ...(waterLocked ? { opacity: 0.4 } : {}) }} /><span style={S.tag}>ml</span><button onClick={() => setCs(p => ({ ...p, waterLocked: !p.waterLocked, waterMl: !p.waterLocked ? "2" : p.waterMl }))} style={{ ...S.lockBtn, borderRadius: 21, padding: '7px 14px', fontSize: 11, letterSpacing: 1, ...(waterLocked ? { ...S.lockOn, boxShadow: '0 0 8px rgba(201,168,76,0.12)' } : {}) }}>{waterLocked ? "\u25C6 2ml" : "\u25C7 Lock"}</button></div></div>
+        <div style={S.field}><label style={S.label}>Bacteriostatic Water</label><div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={waterMl} onChange={e => { if (!waterLocked) set("waterMl", e.target.value) }} readOnly={waterLocked} style={{ ...S.input, minWidth: 0, ...(waterLocked ? { opacity: 0.4 } : {}) }} /><span style={S.tag}>ml</span><button aria-label={waterLocked ? 'Unlock' : 'Lock to 2ml'} onClick={() => setCs(p => ({ ...p, waterLocked: !p.waterLocked, waterMl: !p.waterLocked ? "2" : p.waterMl }))} style={{ ...S.lockBtn, padding: '10px 12px', fontSize: 13, flexShrink: 0, ...(waterLocked ? { ...S.lockOn, boxShadow: '0 0 8px rgba(201,168,76,0.12)' } : {}) }}>{waterLocked ? "\u25C6" : "\u25C7"}</button></div></div>
         <div style={S.divider} />
-        <div style={S.field}><label style={S.label}>Desired Dose</label><div style={S.frow}><input type="number" inputMode="decimal" value={doseMcg} onChange={e => set("doseMcg", e.target.value)} style={S.input} /><div style={S.togGrp}>{["mcg", "mg"].map(u => <button key={u} onClick={() => set("doseUnit", u)} style={{ ...S.togBtn, ...(doseUnit === u ? S.togOn : {}) }}>{u}</button>)}</div></div></div>
+        <div style={S.field}><label style={S.label}>Desired Dose</label><div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={doseMcg} onChange={e => set("doseMcg", e.target.value)} style={{ ...S.input, minWidth: 0 }} /><div style={{ ...S.togGrp, flexShrink: 0 }}>{["mcg", "mg"].map(u => <button key={u} onClick={() => set("doseUnit", u)} style={{ ...S.togBtn, padding: '13px 14px', ...(doseUnit === u ? S.togOn : {}) }}>{u}</button>)}</div></div></div>
         <div style={S.divider} />
         <div style={S.field}><label style={S.label}>Frequency</label><div style={{ ...S.frow, gap: 6 }}>{Object.entries(FREQ_META).filter(([k]) => ["daily", "2x_week", "weekly"].includes(k)).map(([k, v]) => <button key={k} onClick={() => setCs(p => ({ ...p, freq: k }))} style={{ ...S.freqBtn, ...(freq === k ? S.freqOn : {}) }}>{v.label}</button>)}</div></div>
       </div>

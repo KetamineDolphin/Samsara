@@ -25,8 +25,8 @@ const T = {
   warnT: "rgba(255,200,100,0.85)",
   red: "rgba(220,80,80,0.7)",
   fd: "'Cormorant Garamond','Garamond',serif",
-  fb: "'Libre Franklin','Helvetica Neue',sans-serif",
-  fm: "'DM Mono','SF Mono',monospace",
+  fb: "'Inter','-apple-system','SF Pro Text','Helvetica Neue',sans-serif",
+  fm: "'DM Mono','SF Mono',ui-monospace,monospace",
 };
 
 export const CAT_C = {

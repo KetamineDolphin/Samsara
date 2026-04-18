@@ -36,6 +36,23 @@ export async function requestPermission() {
   return result; // 'granted' | 'denied' | 'default'
 }
 
+// Safely read current permission without crashing on iOS WebView
+// (where Notification is undefined but Capacitor provides the real API).
+export async function getPermission() {
+  if (_useCapacitor) {
+    try {
+      const result = await LocalNotifications.checkPermissions();
+      return result.display === 'granted' ? 'granted' : result.display === 'denied' ? 'denied' : 'default';
+    } catch {
+      return 'unsupported';
+    }
+  }
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    return Notification.permission; // 'granted' | 'denied' | 'default'
+  }
+  return 'unsupported';
+}
+
 // ─── Web fallback helpers ─────────────────────────────────────
 
 const MAX_TIMEOUT = 2147483647;

@@ -373,6 +373,7 @@ function LineChartVis({ data, color, height = 180, projectionData }) {
     });
 
     const datasets = [{
+      label: 'Actual',
       data: allLabels.map(l => actualMap[l] ?? null),
       borderColor: color, backgroundColor: grad, fill: true, tension: 0.3,
       pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: color, borderWidth: 2, spanGaps: true
@@ -380,6 +381,7 @@ function LineChartVis({ data, color, height = 180, projectionData }) {
 
     if (hasProj) {
       datasets.push({
+        label: 'Projected',
         data: projBridged,
         borderColor: color.replace("0.8", "0.4"),
         backgroundColor: "transparent", fill: false, tension: 0.3,
@@ -390,9 +392,16 @@ function LineChartVis({ data, color, height = 180, projectionData }) {
       });
     }
 
+    const legendConfig = hasProj
+      ? { display: true, labels: { color: T.t3, font: { family: "DM Mono", size: 9 }, boxWidth: 12, generateLabels: () => [
+          { text: 'Actual', fillStyle: color, strokeStyle: color, lineWidth: 2 },
+          { text: 'Projected', fillStyle: 'transparent', strokeStyle: color.replace("0.8", "0.4"), lineWidth: 2, lineDash: [6, 4] }
+        ] } }
+      : { display: false };
+
     chartRef.current = new Chart(ctx, {
       type: "line", data: { labels: allLabels, datasets },
-      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: { display: hasProj, labels: hasProj ? { color: T.t3, font: { family: "DM Mono", size: 9 }, boxWidth: 12, generateLabels: () => [{ text: 'Actual', fillStyle: color, strokeStyle: color, lineWidth: 2 }, { text: 'Projected', fillStyle: 'transparent', strokeStyle: color.replace("0.8", "0.4"), lineWidth: 2, lineDash: [6, 4] }] } : undefined }, tooltip: { backgroundColor: "rgba(15,17,20,0.95)", borderColor: T.gold, borderWidth: 1, titleFont: { family: "DM Mono" }, bodyFont: { family: "DM Mono" }, padding: 8 } }, scales: { x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 9 }, maxRotation: 0 } }, y: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 10 } } } } }
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: legendConfig, tooltip: { backgroundColor: "rgba(15,17,20,0.95)", borderColor: T.gold, borderWidth: 1, titleFont: { family: "DM Mono" }, bodyFont: { family: "DM Mono" }, padding: 8 } }, scales: { x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 9 }, maxRotation: 0 } }, y: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: T.t3, font: { family: "DM Mono", size: 10 } } } } }
     });
     return () => { if (chartRef.current) chartRef.current.destroy(); };
   }, [data, color, height, projectionData]);
@@ -1377,16 +1386,16 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
           {milestones.length > 0 ? (
             <div style={{ marginBottom: 13 }}>
-              <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: T.gold, fontFamily: T.fm, marginBottom: 8 }}>MILESTONES</div>
+              <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700, color: T.gold, fontFamily: T.fb, marginBottom: 10 }}>Milestones</div>
               {milestones.map((m, i) => (
-                <div key={i} style={{ ...S.card, padding: '10px 14px', marginBottom: 6, borderLeft: `3px solid ${T.gold}`, background: 'rgba(201,168,76,0.04)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.goldS, border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 12, color: T.gold }}>{'\u2605'}</span>
+                <div key={i} style={{ ...S.card, padding: '12px 14px', marginBottom: 6, background: 'rgba(201,168,76,0.04)', border: '1px solid ' + T.goldM, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: '50%', background: T.goldS, border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={T.gold} stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 12, fontFamily: T.fm, color: T.t1, fontWeight: 500 }}>{m.label}</span>
+                    <span style={{ fontSize: 13, fontFamily: T.fb, color: T.t1, fontWeight: 600, letterSpacing: -0.1 }}>{m.label}</span>
                   </div>
-                  <span style={{ fontSize: 10, fontFamily: T.fm, color: T.t3, letterSpacing: 0.5, flexShrink: 0 }}>{m.date}</span>
+                  <span style={{ fontSize: 11, fontFamily: T.fm, color: T.t3, letterSpacing: 0.2, flexShrink: 0 }}>{m.date}</span>
                 </div>
               ))}
             </div>

@@ -5,7 +5,7 @@ import S from '../utils/styles';
 import { CAT_C } from '../utils/tokens';
 import { TIMING_GROUPS, FREQ_META } from '../data/library';
 import { getToday, getNow, fmtDose, daysNextWeekly, getWeekStart, concOf, unitsOf, usableDoses, vialAge, vialFreshness, suggestNextSite, getEscalationStatus, makeId, SITE_LIST } from '../utils/helpers';
-import { BodyMap } from '../components/Shared';
+import { BodyMap, TimingIcons } from '../components/Shared';
 import BodyModel3D from '../components/BodyModel3D';
 import LIB from '../data/library';
 import { analyzeStack } from '../data/interactions';
@@ -183,18 +183,18 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
           alignItems: 'center',
         }}>
           {alerts.restSites.length > 0 && (
-            <span style={{ fontSize: 10, color: 'rgba(220,80,80,0.85)', fontFamily: T.fm }}>
-              {'\u26A0'} Rest: {alerts.restSites.map(s => s.label).join(', ')}
+            <span style={{ fontSize: 11, color: 'rgba(220,80,80,0.85)', fontFamily: T.fb, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(220,80,80,0.85)' }} />Rest: {alerts.restSites.map(s => s.label).join(', ')}
             </span>
           )}
           {alerts.overusedSites.length > 0 && (
-            <span style={{ fontSize: 10, color: T.amber, fontFamily: T.fm }}>
-              {'\u21BB'} Overused: {alerts.overusedSites.map(s => s.label).join(', ')}
+            <span style={{ fontSize: 11, color: T.amber, fontFamily: T.fb, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.amber }} />Overused: {alerts.overusedSites.map(s => s.label).join(', ')}
             </span>
           )}
           {alerts.suggestedSite && (
-            <span style={{ fontSize: 10, color: T.gold, fontFamily: T.fm }}>
-              {'\u2736'} Use: <span style={{ fontWeight: 600 }}>{alerts.suggestedSite.label}</span>
+            <span style={{ fontSize: 11, color: T.gold, fontFamily: T.fb, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.gold }} />Use: <span style={{ fontWeight: 700 }}>{alerts.suggestedSite.label}</span>
             </span>
           )}
         </div>
@@ -203,8 +203,8 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <p style={{ fontFamily: T.fd, fontSize: 17, fontWeight: 300, color: T.t2, letterSpacing: 1, margin: 0 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         <div style={{ display: 'flex', gap: 6 }}>
-          {onQuickCheckin && <button onClick={onQuickCheckin} style={{ ...S.pill, fontSize: 9, padding: '3px 8px', borderColor: 'rgba(0,210,180,0.3)', color: T.teal }}>Check-in</button>}
-          <button onClick={onOpenSites} style={{ ...S.pill, fontSize: 9, padding: '3px 8px', borderColor: T.goldM, color: T.gold }}>Sites</button>
+          {onQuickCheckin && <button onClick={onQuickCheckin} style={{ ...S.pill, fontSize: 11, padding: '6px 12px', background: 'rgba(0,210,180,0.08)', borderColor: 'rgba(0,210,180,0.25)', color: T.teal, fontWeight: 600 }}>Check-in</button>}
+          <button onClick={onOpenSites} style={{ ...S.pill, fontSize: 11, padding: '6px 12px', background: T.goldS, borderColor: T.goldM, color: T.gold, fontWeight: 600 }}>Sites</button>
         </div>
       </div>
 
@@ -242,7 +242,10 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
         if (!compounds || compounds.length === 0) return null;
         return (
           <div key={g.id}>
-            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginBottom: 4, marginTop: 6 }}>{g.icon} {g.label}</div>
+            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 700, color: T.t3, fontFamily: T.fb, marginBottom: 8, marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {TimingIcons[g.id] ? TimingIcons[g.id](T.t3, 12) : null}
+              <span>{g.label}</span>
+            </div>
             {compounds.map(c => {
               const isW = c.frequency === 'weekly';
               const freqMeta = FREQ_META[c.frequency] || FREQ_META.daily;
@@ -371,7 +374,7 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
                         const isGood = n.type === 'synergy';
                         const isDanger = n.severity === 'danger' || n.type === 'conflict';
                         const color = isGood ? '#5cb870' : isDanger ? 'rgba(220,80,80,0.85)' : T.amber;
-                        return <div key={i} style={{ fontSize: 10, color, fontFamily: T.fm, lineHeight: 1.4, padding: '1px 0', display: 'flex', gap: 5, alignItems: 'flex-start' }}><span style={{ fontSize: 5, marginTop: 4, flexShrink: 0 }}>{'\u25CF'}</span><span>{n.note}</span></div>;
+                        return <div key={i} style={{ fontSize: 11, color, fontFamily: T.fb, fontWeight: 500, lineHeight: 1.45, padding: '1px 0', display: 'flex', gap: 6, alignItems: 'flex-start' }}><span style={{ width: 4, height: 4, borderRadius: '50%', background: color, marginTop: 6, flexShrink: 0 }} /><span>{n.note}</span></div>;
                       })}
                     </div>
                   )}

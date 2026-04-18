@@ -2,6 +2,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 
+// Beta flag — paywall is disabled while we wire up App Store IAP.
+// Set back to `false` once StoreKit products are live in App Store Connect.
+const PAYWALL_DISABLED = true;
+
 const PRODUCT_IDS = {
   month: 'samsara_pro_monthly',
   year: 'samsara_pro_annual',
@@ -92,8 +96,9 @@ export function useProStatus(profile, setProfile) {
     check();
   }, []);
 
-  // On web (non-native), all features are free — pro gate only applies on iOS
-  const isPro = !Capacitor.isNativePlatform() || profile?.tier === 'pro';
+  // While PAYWALL_DISABLED is true, every feature is unlocked — beta period.
+  // On web (non-native), all features are free — pro gate only applies on iOS.
+  const isPro = PAYWALL_DISABLED || !Capacitor.isNativePlatform() || profile?.tier === 'pro';
 
   const purchase = useCallback(async (planKey) => {
     const productId = PRODUCT_IDS[planKey];
@@ -137,7 +142,7 @@ export const FREE_LIMITS = {
 };
 
 export function canUseFeature(feature, profile, counts = {}) {
-  if (profile?.tier === 'pro') return true;
+  if (PAYWALL_DISABLED || profile?.tier === 'pro') return true;
   switch (feature) {
     case 'checkin': return (counts.checkins || 0) < FREE_LIMITS.checkins;
     case 'aiAnalysis': return (counts.aiAnalyses || 0) < FREE_LIMITS.aiAnalysesPerMonth;

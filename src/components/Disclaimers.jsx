@@ -91,8 +91,8 @@ export function DisclaimerGate({ onAccept }) {
 export function CalcDisclaimer() {
   return (
     <p style={{
-      fontSize: 9, color: T.t3, fontFamily: T.fm, textAlign: 'center',
-      lineHeight: 1.5, padding: '12px 16px', opacity: 0.5,
+      fontSize: 10, color: T.t3, fontFamily: T.fb, fontWeight: 400, textAlign: 'center',
+      lineHeight: 1.55, padding: '12px 16px', opacity: 0.6, letterSpacing: 0.1,
     }}>
       Verify all calculations with your prescribing physician before administration.
       This tool does not constitute medical advice.

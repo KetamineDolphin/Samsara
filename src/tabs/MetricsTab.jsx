@@ -5,6 +5,8 @@ import T from '../utils/tokens';
 import S from '../utils/styles';
 import { getToday, getNow, parseBF, makeId } from '../utils/helpers';
 import { logSubjective } from '../data/analytics';
+import { compressImage } from '../utils/image';
+import { AI_MODEL } from '../utils/ai';
 import { SamsaraSymbol, Enso } from '../components/Shared';
 import { parseLabText, extractLabDate, countParsedMarkers } from '../utils/labParser';
 import { ProLock, ProBadge } from '../components/ProGate';
@@ -221,8 +223,9 @@ Analyze this bloodwork in the context of the active protocol. Return only the JS
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: AI_MODEL,
         max_tokens: 2000,
+        temperature: 0,
         system: BLOODWORK_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
       }),
@@ -247,85 +250,56 @@ Analyze this bloodwork in the context of the active protocol. Return only the JS
   }
 }
 
-async function extractFromImage(base64) {
-  if (!navigator.onLine) throw new Error('No internet connection. Connect to Wi-Fi or cellular and try again.');
-  const prompt = `You are extracting values from a bloodwork lab report image. Return ONLY a JSON object with marker keys and numeric values. Use these exact keys where applicable: ${Object.keys(MARKER_LABELS).join(', ')}. Also include a date field if visible (YYYY-MM-DD). Example: {"date":"2026-03-15","totalTestosterone":850,"estradiol":28,"hematocrit":48.2}. No other text.`;
-  const res = await fetch('/api/analyze', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-          { type: 'text', text: prompt },
-        ],
-      }],
-    }),
-  });
-  if (!res.ok) throw new Error('Image extraction failed');
-  const data = await res.json();
-  let text = '';
-  if (data.content && Array.isArray(data.content)) text = data.content.map(c => c.text || '').join('');
-  else if (data.text) text = data.text;
-  else text = JSON.stringify(data);
-  text = text.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
-  return JSON.parse(text);
-}
+// Structured lab-value extraction. Forcing a tool call guarantees a typed
+// object back (no fragile free-text JSON scraping). The tool exposes exactly
+// the marker keys the app understands, so the model can't invent fields.
+const LAB_EXTRACT_TOOL = {
+  name: 'report_labs',
+  description: 'Report the numeric lab marker values read from the report.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      ...Object.fromEntries(Object.keys(MARKER_LABELS).map(k => [k, { type: 'number' }])),
+      date: { type: 'string', description: 'Collection date in YYYY-MM-DD if visible on the report.' },
+      label: { type: 'string', description: 'Lab provider / panel name if visible (e.g. "Quest Diagnostics").' },
+    },
+  },
+};
 
-async function extractFromPDF(base64) {
+async function extractLabValues(sourceBlock, { wantLabel } = {}) {
   if (!navigator.onLine) throw new Error('No internet connection. Connect to Wi-Fi or cellular and try again.');
-  const prompt = `You are extracting values from a bloodwork lab report PDF. Return ONLY a JSON object with marker keys and numeric values. Use these exact keys where applicable: ${Object.keys(MARKER_LABELS).join(', ')}. Also include a "date" field if visible (YYYY-MM-DD) and a "label" field with the lab provider name if visible (e.g. "Quest March 2026"). Example: {"date":"2026-03-15","label":"Quest Diagnostics","totalTestosterone":850,"estradiol":28,"hematocrit":48.2}. No other text.`;
+  const prompt = `Read this bloodwork lab report and report every marker value you can see by calling the report_labs tool. Use only the tool's fields; omit any marker you cannot read confidently rather than guessing. Include the collection date (YYYY-MM-DD) if it is visible${wantLabel ? ', and the lab provider name as "label"' : ''}. Convert values to the same unit implied by the field names; do not include units in the numbers.`;
   const res = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: AI_MODEL,
       max_tokens: 2000,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-          { type: 'text', text: prompt },
-        ],
-      }],
+      temperature: 0,
+      tools: [LAB_EXTRACT_TOOL],
+      tool_choice: { type: 'tool', name: 'report_labs' },
+      messages: [{ role: 'user', content: [sourceBlock, { type: 'text', text: prompt }] }],
     }),
   });
-  if (!res.ok) throw new Error('PDF extraction failed');
+  if (!res.ok) throw new Error('Lab extraction failed');
   const data = await res.json();
+  const toolUse = (data.content || []).find(c => c.type === 'tool_use' && c.name === 'report_labs');
+  if (toolUse && toolUse.input && typeof toolUse.input === 'object') return toolUse.input;
+  // Fallback: some responses may still return text — parse defensively.
   let text = '';
-  if (data.content && Array.isArray(data.content)) text = data.content.map(c => c.text || '').join('');
+  if (Array.isArray(data.content)) text = data.content.map(c => c.text || '').join('');
   else if (data.text) text = data.text;
-  else text = JSON.stringify(data);
   text = text.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
+  if (!text) throw new Error('No values could be read from this report.');
   return JSON.parse(text);
 }
 
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        const maxDim = 1200;
-        let w = img.width, h = img.height;
-        if (w > h && w > maxDim) { h = h * (maxDim / w); w = maxDim; }
-        else if (h > maxDim) { w = w * (maxDim / h); h = maxDim; }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        resolve(dataUrl.split(',')[1]);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+function extractFromImage(base64) {
+  return extractLabValues({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } }, { wantLabel: false });
+}
+
+function extractFromPDF(base64) {
+  return extractLabValues({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { wantLabel: true });
 }
 
 // ============================================================================
@@ -628,12 +602,13 @@ function SubjectiveSection({ subjective, setSubjective, getSubjectiveChartData }
 // MAIN COMPONENT
 // ============================================================================
 
-export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, setSubjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, isPro, onUpgrade }) {
+export default function MetricsTab({ checkins: rawCheckins, logs, stack, subjective, setSubjective, detectMilestones, calculateTrajectory, generateWeeklySummary, getAdherenceStats, getSubjectiveChartData, profile, labResults, setLabResults, isPro, onUpgrade, embedded = false, externalView = null }) {
   const checkins = rawCheckins || [];
   const results = labResults || [];
   const sex = profile?.biologicalSex || 'male';
 
-  const [sv, setSv] = useState('charts');
+  const [svState, setSv] = useState('charts');
+  const sv = externalView || svState;
   const [weeklySummary, setWeeklySummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
@@ -665,7 +640,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     return () => clearInterval(iv);
   }, [analyzing]);
 
-  const segBar = <div style={{ ...S.segWrap, marginBottom: 16 }}>{[{ k: 'charts', l: 'Charts' }, { k: 'insights', l: 'Insights' }, { k: 'labs', l: 'Labs' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, fontSize: 12, padding: '7px 0', ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>;
+  const segBar = embedded ? null : <div style={{ ...S.segWrap, marginBottom: 16 }}>{[{ k: 'charts', l: 'Charts' }, { k: 'insights', l: 'Insights' }, { k: 'labs', l: 'Labs' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, fontSize: 12, padding: '7px 0', ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>;
 
   const normalizedLogs = (logs || []).map(l => l.compoundId ? l : { ...l, compoundId: l.cid });
 
@@ -801,7 +776,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
     return (
       <div style={{ animation: 'fadeUp .5s ease both' }}>
-        <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Adherence Dashboard</p></header>
+        {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Adherence Dashboard</p></header>}
         {segBar}
         {!hasCompounds ? (
           <div style={{ textAlign: 'center', padding: '60px 20px 40px' }}>
@@ -935,7 +910,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     if (!isPro) {
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results <ProBadge /></p></header>
+          {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results <ProBadge /></p></header>}
           {segBar}
           <ProLock onUpgrade={onUpgrade} label="Lab Results">
             <div style={{ textAlign: 'center', padding: '50px 20px 40px' }}>
@@ -967,7 +942,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
+          {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>}
           {segBar}
           <button onClick={() => { setLabView('list'); setSelectedLabId(null); }} style={{ background: 'none', border: 'none', color: T.gold, fontFamily: T.fm, fontSize: 11, cursor: 'pointer', marginBottom: 10, padding: 0 }}>{'\u2190'} Labs</button>
 
@@ -1127,7 +1102,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Add Lab Results</p></header>
+          {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Add Lab Results</p></header>}
           {segBar}
           <button onClick={() => { setLabView('list'); resetAddForm(); }} style={{ background: 'none', border: 'none', color: T.gold, fontFamily: T.fm, fontSize: 11, cursor: 'pointer', marginBottom: 10, padding: 0 }}>{'\u2190'} Cancel</button>
 
@@ -1225,7 +1200,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     if (results.length === 0) {
       return (
         <div style={{ animation: 'fadeUp .5s ease both' }}>
-          <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>
+          {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Lab Results</p></header>}
           {segBar}
           <div style={{ textAlign: 'center', padding: '50px 20px 40px' }}>
             <div style={{ width: 56, height: 56, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Enso size={28} /></div>
@@ -1359,10 +1334,10 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
   return (
     <div style={{ animation: 'fadeUp .5s ease both' }}>
-      <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Progress Charts</p></header>
+      {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>METRICS</h1><p style={S.sub}>Progress Charts</p></header>}
       {segBar}
 
-      {sorted.length < 2 ? <div style={{ textAlign: 'center', padding: '60px 20px 40px' }}><div style={{ width: 48, height: 48, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SamsaraSymbol size={24} /></div><p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, lineHeight: 1.3 }}>The data awaits</p><p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 10, lineHeight: 1.6, letterSpacing: 0.5 }}>Log two or more check-ins in the Body tab{'\n'}to see your progress charts emerge.</p></div>
+      {sorted.length < 2 ? <div style={{ textAlign: 'center', padding: '60px 20px 40px' }}><div style={{ width: 48, height: 48, margin: '0 auto 20px', borderRadius: '50%', border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SamsaraSymbol size={24} /></div><p style={{ fontFamily: T.fd, fontSize: 22, fontWeight: 300, color: T.t2, letterSpacing: 1, lineHeight: 1.3 }}>The data awaits</p><p style={{ fontFamily: T.fm, fontSize: 11, color: T.t3, marginTop: 10, lineHeight: 1.6, letterSpacing: 0.5 }}>Log two or more check-ins{'\n'}to see your progress charts emerge.</p></div>
         : <div>
           {checkins.length >= 5 && (trajectory.daysToTargetWeight || trajectory.daysToTargetWaist) && (
             <div style={{ ...S.card, padding: 14, marginBottom: 13, border: `1px solid ${T.goldM}`, background: 'rgba(201,168,76,0.04)' }}>
@@ -1386,7 +1361,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
 
           {milestones.length > 0 ? (
             <div style={{ marginBottom: 13 }}>
-              <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700, color: T.gold, fontFamily: T.fb, marginBottom: 10 }}>Milestones</div>
+              <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 500, color: T.gold, fontFamily: T.fm, marginBottom: 10 }}>Milestones</div>
               {milestones.map((m, i) => (
                 <div key={i} style={{ ...S.card, padding: '12px 14px', marginBottom: 6, background: 'rgba(201,168,76,0.04)', border: '1px solid ' + T.goldM, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 30, height: 30, borderRadius: '50%', background: T.goldS, border: `1px solid ${T.goldM}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

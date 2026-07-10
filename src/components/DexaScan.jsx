@@ -10,80 +10,92 @@ import T from '../utils/tokens';
 import S from '../utils/styles';
 import { getPhotosForCheckin } from '../hooks/useStorage';
 import { SamsaraSymbol, Enso } from './Shared';
+import { deriveScanMetrics, heightInches } from '../utils/bodyComp';
+import { AI_MODEL } from '../utils/ai';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    DEXA ANALYSIS PROMPT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const DEXA_PROMPT = `You are Samsara's AI Body Scan engine — a clinical-grade body composition estimator. You analyze physique photos with the precision of a DEXA scan, producing regional body fat estimates, lean mass assessments, and derived clinical metrics.
+const DEXA_PROMPT = `You are Samsara's AI Body Scan engine — a clinical-grade visual body composition reader. You estimate regional and total body fat from physique photos with the objectivity of a trained DEXA technician reading a scan.
 
-Analyze the uploaded photo(s) and return ONLY a valid JSON object. No markdown, no backticks, no explanation — raw JSON only.
+You will report your estimates by calling the report_scan tool. Estimate ONLY what the photos let you see. Every derived number (BMI, FFMI, RMR, lean/fat mass in pounds, android/gynoid ratio, visceral area, metabolic age, percentile) is computed downstream from your visual estimates plus the subject's known weight, waist, height, sex, and age — so do NOT compute or return those. Your job is the part only a human eye can do: read fat levels off the image.
 
-Required JSON schema:
-{
-  "totalBodyFatPct": 18.5,
-  "totalLeanMassLbs": 155,
-  "totalFatMassLbs": 34,
-  "boneMineralPct": 3.2,
-  "regions": {
-    "leftArm": { "fatPct": 14.2, "leanLbs": 9.8, "rating": "lean", "confidence": "high" },
-    "rightArm": { "fatPct": 14.0, "leanLbs": 10.1, "rating": "lean", "confidence": "high" },
-    "chest": { "fatPct": 15.5, "leanLbs": 12.3, "rating": "lean", "confidence": "high" },
-    "upperAbs": { "fatPct": 18.0, "leanLbs": 8.4, "rating": "moderate", "confidence": "high" },
-    "lowerAbs": { "fatPct": 24.5, "leanLbs": 6.2, "rating": "elevated", "confidence": "high" },
-    "obliques": { "fatPct": 22.0, "leanLbs": 5.8, "rating": "moderate", "confidence": "medium" },
-    "upperBack": { "fatPct": 14.8, "leanLbs": 14.5, "rating": "lean", "confidence": "medium" },
-    "lowerBack": { "fatPct": 20.0, "leanLbs": 7.2, "rating": "moderate", "confidence": "medium" },
-    "glutes": { "fatPct": 20.5, "leanLbs": 11.0, "rating": "moderate", "confidence": "medium" },
-    "leftLeg": { "fatPct": 17.8, "leanLbs": 22.5, "rating": "lean", "confidence": "high" },
-    "rightLeg": { "fatPct": 17.5, "leanLbs": 23.0, "rating": "lean", "confidence": "high" }
+═══ WHAT TO ESTIMATE ═══
+- totalBodyFatPct: single best estimate to the nearest 0.5%.
+- regions: for each region visible, a fatPct and a relative leanLbs (soft lean tissue in that region — approximate, used only for proportion), a rating, and a confidence. Return only regions actually assessable; omit or mark low-confidence ones you can't see.
+- symmetryReadable, bodyType, muscleDensityRating: qualitative reads.
+- keyFinding / comparedToLast / recommendations: the narrative.
+
+Region rating scale: "very lean" (<12% male / <20% female), "lean" (12-17% / 20-25%), "moderate" (17-23% / 25-31%), "elevated" (23-28% / 31-36%), "high" (>28% / >36%).
+Region confidence: "high" if directly visible, "medium" if partially visible, "low" if inferred.
+
+═══ BODY-FAT CALIBRATION ═══
+MALE reference:
+- 8-12%:  abs visible relaxed, arm vascularity, shoulder separation
+- 12-17%: ab outline visible, minor softness below navel
+- 17-23%: flat/slightly rounded midsection, little ab definition
+- 23-28%: visible fat pad, no muscle separation
+- 28%+:   round midsection, overhang
+FEMALE reference runs ~8 percentage points higher for the same visual leanness (essential fat is higher): abs faintly visible ~16-20%, athletic ~21-24%, average ~25-31%, higher ~32%+.
+Use the subject's stated biological sex for calibration.
+
+═══ CONSISTENCY RULES (highest priority) ═══
+- Assess ONLY what is visible. Protocol duration, compound names, goal, and age must NOT bias the fat estimate. The SAME photo must yield the SAME totalBodyFatPct whether it is day 1 or day 500.
+- Prefer a precise single value over a wide hedge, but never claim precision the image doesn't support — lower your confidence instead.
+- confidenceLevel: "high" if front+side (or more) with good lighting, "medium" if a single clear photo, "low" if poor quality/obstructed.
+- If only a front photo is available, mark posterior regions low-confidence rather than inventing them.
+- Report, don't editorialize. keyFinding names a specific visible finding, anchored to a region.`;
+
+// Structured-output schema — the model is forced to call this tool,
+// which guarantees a parseable object (no free-text JSON scraping).
+// Numeric derived metrics are intentionally ABSENT: they're computed
+// in code from these visual estimates via deriveScanMetrics().
+const REGION_SCHEMA = {
+  type: 'object',
+  properties: {
+    fatPct: { type: 'number' },
+    leanLbs: { type: 'number' },
+    rating: { type: 'string', enum: ['very lean', 'lean', 'moderate', 'elevated', 'high'] },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
-  "ffmi": 22.1,
-  "bmi": 24.5,
-  "estimatedRMR": 1850,
-  "trunkToLimbFatRatio": 1.35,
-  "androidFatPct": 22.5,
-  "gynoidFatPct": 18.0,
-  "agRatio": 1.25,
-  "visceralFatRating": "moderate",
-  "visceralFatArea": 95,
-  "symmetryScore": 9.2,
-  "muscleDensityRating": "above average",
-  "bodyType": "mesomorph-leaning",
-  "metabolicAge": 28,
-  "confidenceLevel": "high",
-  "populationPercentile": 72,
-  "keyFinding": "One specific, clinical-sounding observation about the most significant composition finding.",
-  "comparedToLast": "Specific comparison to previous scan data if provided. If first scan, say 'Baseline scan established.'",
-  "recommendations": {
-    "training": "Specific training recommendation based on composition findings",
-    "nutrition": "Specific nutrition recommendation targeting body composition goals",
-    "recovery": "Recovery or lifestyle recommendation to support recomposition",
-    "focus": "Priority recommendation targeting the weakest region or biggest opportunity"
-  }
-}
+  required: ['fatPct', 'rating', 'confidence'],
+};
 
-Rating scale for regions: "very lean" (<12%), "lean" (12-17%), "moderate" (17-23%), "elevated" (23-28%), "high" (>28%).
-Region confidence: "high" if directly visible in photo(s), "medium" if partially visible, "low" if estimated from other cues.
-
-Critical rules:
-- Assess ONLY what is visible in the photo(s). Do not let protocol duration, compound names, or any non-visual context bias your estimates.
-- The same photo must produce the same results regardless of whether it is day 1 or day 100 of a protocol.
-- Use the subject's weight to calculate realistic lean/fat mass splits. Total lean + fat must approximately equal body weight.
-- Regional lean mass must sum approximately to total lean mass.
-- Be precise — narrow estimates, not wide ranges. This simulates clinical equipment.
-- FFMI = (lean mass in kg) / (height in m)² — use provided height. Values 20-25 indicate muscular, >25 elite/enhanced.
-- BMI = (weight in kg) / (height in m)². Standard classification.
-- estimatedRMR: Katch-McArdle formula = 370 + (21.6 × lean mass in kg). Round to nearest 10.
-- trunkToLimbFatRatio: average trunk fat% / average limb fat%. >1.3 indicates central adiposity.
-- Android fat = trunk region average. Gynoid fat = hip/thigh region average. A/G ratio > 1.0 indicates android (central) fat distribution.
-- Visceral fat area: <100 cm² normal, 100-160 elevated, >160 high.
-- Metabolic age: estimate based on composition relative to population norms.
-- confidenceLevel: "high" if front+side or more photos, "medium" if front only, "low" if poor image quality.
-- populationPercentile: 0-100, where does this person's lean mass / body fat ratio rank vs. general population of same sex and approximate age bracket.
-- If only front photo available, estimate back/posterior regions with lower confidence.
-- Symmetry score: 10 = perfect bilateral symmetry, assess arm and leg balance.
-- Be honest and consistent. Never inflate or deflate estimates based on expected timeline or protocol. A clinician reports what the scan shows, period.`;
+const SCAN_TOOL = {
+  name: 'report_scan',
+  description: 'Report the visual body-composition estimates read from the photos.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      totalBodyFatPct: { type: 'number', description: 'Best single estimate of whole-body fat %, to nearest 0.5.' },
+      regions: {
+        type: 'object',
+        properties: {
+          leftArm: REGION_SCHEMA, rightArm: REGION_SCHEMA, chest: REGION_SCHEMA,
+          upperAbs: REGION_SCHEMA, lowerAbs: REGION_SCHEMA, obliques: REGION_SCHEMA,
+          upperBack: REGION_SCHEMA, lowerBack: REGION_SCHEMA, glutes: REGION_SCHEMA,
+          leftLeg: REGION_SCHEMA, rightLeg: REGION_SCHEMA,
+        },
+      },
+      muscleDensityRating: { type: 'string', description: 'e.g. "below average", "average", "above average", "high".' },
+      bodyType: { type: 'string', description: 'e.g. "ectomorph", "mesomorph-leaning", "endomorph-leaning".' },
+      confidenceLevel: { type: 'string', enum: ['high', 'medium', 'low'] },
+      keyFinding: { type: 'string', description: 'The single most significant visible composition finding, anchored to a region.' },
+      comparedToLast: { type: 'string', description: "Comparison to previous scan if provided; else 'Baseline scan established.'" },
+      recommendations: {
+        type: 'object',
+        properties: {
+          training: { type: 'string' },
+          nutrition: { type: 'string' },
+          recovery: { type: 'string' },
+          focus: { type: 'string' },
+        },
+      },
+    },
+    required: ['totalBodyFatPct', 'regions', 'confidenceLevel', 'keyFinding'],
+  },
+};
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BODY MAP SVG — Stylized anatomical silhouette with fillable regions
@@ -570,15 +582,20 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
         ? `Previous scan data: ${JSON.stringify(prevScan.dexaScan)}`
         : 'First scan — establish baseline.';
 
+      const sex = profile?.biologicalSex || 'male';
+      const hIn = heightInches(profile);
       const payload = {
-        model: 'claude-sonnet-4-20250514',
+        model: AI_MODEL,
         max_tokens: 4500,
+        temperature: 0, // reproducibility: same photo → same read
         system: DEXA_PROMPT,
+        tools: [SCAN_TOOL],
+        tool_choice: { type: 'tool', name: 'report_scan' },
         messages: [{
           role: 'user',
           content: [
             ...imageBlocks,
-            { type: 'text', text: `Body scan request.\nWeight: ${checkin.weight} lbs. Waist: ${checkin.waist}".\nPhotos available: ${photoLabels.join(', ')} (${photoLabels.length}).\nBio sex: ${profile?.biologicalSex || 'male'}. Age: ${profile?.age || '30'}. Height: ${profile?.height ? (profile.height.feet + "'" + profile.height.inches + '"') : 'unknown'}.\n${prevContext}` },
+            { type: 'text', text: `Body scan request.\nWeight: ${checkin.weight} lbs. Waist: ${checkin.waist}".\nPhotos available: ${photoLabels.join(', ')} (${photoLabels.length}).\nBiological sex: ${sex}. Age: ${profile?.age || '30'}. Height: ${profile?.height ? (profile.height.feet + "'" + profile.height.inches + '"') : 'unknown'}.\n${prevContext}` },
           ],
         }],
       };
@@ -597,20 +614,48 @@ export default function DexaScan({ checkins, setCheckins, stack, profile }) {
       }
 
       const data = await resp.json();
-      const rawText = (data.content || []).map(i => i.text || '').join('');
 
-      // Parse JSON from response
-      let parsed;
-      try {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(rawText);
-      } catch {
-        throw new Error('Could not parse scan results. Try again.');
+      // Forced tool-use guarantees a structured block. Fall back to
+      // legacy text-JSON scraping only if the tool block is absent.
+      const toolBlock = (data.content || []).find(b => b.type === 'tool_use');
+      let visual = toolBlock ? toolBlock.input : null;
+      if (!visual) {
+        const rawText = (data.content || []).map(i => i.text || '').join('');
+        try {
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          visual = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(rawText);
+        } catch {
+          throw new Error('Could not parse scan results. Try again.');
+        }
       }
 
-      if (!parsed.totalBodyFatPct || !parsed.regions) {
+      if (visual.totalBodyFatPct == null || !visual.regions) {
         throw new Error('Incomplete scan data returned. Try again.');
       }
+
+      // Compute all derived clinical metrics in code (exact, reproducible)
+      // from the model's visual estimates + known ground truth.
+      const derived = deriveScanMetrics(visual, {
+        weightLbs: Number(checkin.weight) || null,
+        waistIn: Number(checkin.waist) || null,
+        heightIn: hIn,
+        sex,
+        age: profile?.age,
+      });
+
+      // Reconcile per-region lean mass so it sums to the computed total.
+      const regions = { ...visual.regions };
+      if (derived.totalLeanMassLbs) {
+        const sumLean = Object.values(regions).reduce((s, r) => s + (r?.leanLbs || 0), 0);
+        if (sumLean > 0) {
+          const scale = derived.totalLeanMassLbs / sumLean;
+          for (const k of Object.keys(regions)) {
+            if (regions[k]?.leanLbs) regions[k] = { ...regions[k], leanLbs: Math.round(regions[k].leanLbs * scale * 10) / 10 };
+          }
+        }
+      }
+
+      const parsed = { ...visual, ...derived, regions, engineVersion: 4 };
 
       // Save scan data to check-in
       setScanData(parsed);

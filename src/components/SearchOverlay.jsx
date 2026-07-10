@@ -29,7 +29,7 @@ function searchAll(query, { logs, checkins, stack, labResults }) {
   (checkins || []).forEach((c, i) => {
     const txt = [c.weight && (c.weight + ' lbs'), c.waist && (c.waist + '"'), c.analysis && c.analysis.keyObservation].filter(Boolean).join(' ').toLowerCase();
     if (txt.includes(q) || (c.date && c.date.includes(q))) {
-      results.push({ type: 'checkin', id: 'ci' + i, title: 'Check-in Day ' + (c.day || '?'), subtitle: (c.weight || '?') + ' lbs \u00B7 ' + (c.date || ''), tab: 'BODY' });
+      results.push({ type: 'checkin', id: 'ci' + i, title: 'Check-in Day ' + (c.day || '?'), subtitle: (c.weight || '?') + ' lbs \u00B7 ' + (c.date || ''), tab: 'PROGRESS', view: 'checkin' });
     }
   });
 
@@ -37,7 +37,7 @@ function searchAll(query, { logs, checkins, stack, labResults }) {
   (labResults || []).forEach((lab, i) => {
     const txt = [lab.date, lab.source, ...(lab.markers || []).map(m => m.name + ' ' + m.value)].filter(Boolean).join(' ').toLowerCase();
     if (txt.includes(q)) {
-      results.push({ type: 'lab', id: 'lab' + i, title: 'Lab Results ' + (lab.date || ''), subtitle: (lab.markers || []).length + ' markers', tab: 'METRICS' });
+      results.push({ type: 'lab', id: 'lab' + i, title: 'Lab Results ' + (lab.date || ''), subtitle: (lab.markers || []).length + ' markers', tab: 'PROGRESS', view: 'labs' });
     }
   });
 
@@ -133,7 +133,7 @@ export default function SearchOverlay({ onClose, onNavigate, logs, checkins, sta
             <div key={type} style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: TYPE_COLORS[type] || T.t3, fontFamily: T.fm, marginBottom: 6, padding: '0 4px' }}>{typeLabels[type] || type}</div>
               {items.map(r => (
-                <button key={r.id} onClick={() => { onNavigate(r.tab, r.type === 'compound' ? r.id : null); onClose(); }} style={{
+                <button key={r.id} onClick={() => { onNavigate(r.tab, r.type === 'compound' ? r.id : null, r.view); onClose(); }} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                   background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border,
                   borderRadius: 10, marginBottom: 4, width: '100%', cursor: 'pointer',

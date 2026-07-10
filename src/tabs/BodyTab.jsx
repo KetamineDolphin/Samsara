@@ -13,6 +13,8 @@ import { SamsaraSymbol, Enso } from '../components/Shared';
 import { ProLock, ProBadge } from '../components/ProGate';
 import { AIDisclaimer } from '../components/Disclaimers';
 import { savePhoto, getPhotosForCheckin } from '../hooks/useStorage';
+import { compressImage } from '../utils/image';
+import { AI_MODEL } from '../utils/ai';
 import DexaScan from '../components/DexaScan';
 
 Chart.register(...registerables);
@@ -282,29 +284,6 @@ function validatePhoto(file) {
   if (!ALLOWED_TYPES.includes(file.type) && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) return 'Unsupported file type. Use JPEG, PNG, WebP, or HEIC.';
   if (file.size > MAX_FILE_SIZE) return 'File too large (max 20 MB). Try a smaller photo or lower resolution.';
   return null;
-}
-
-function compressImage(file, maxDim) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Failed to decode image'));
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let w = img.width, h = img.height;
-        if (w > maxDim || h > maxDim) { const r = Math.min(maxDim / w, maxDim / h); w = Math.round(w * r); h = Math.round(h * r); }
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', maxDim > 200 ? 0.85 : 0.6).split(',')[1]);
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
 }
 
 function buildImageBlocks(photos) {
@@ -602,15 +581,16 @@ function BodyFatChart({ checkins, height = 160 }) {
 
 export default function BodyTab({
   checkins: rawCheckins, setCheckins, stack: rawStack, logs: rawLogs,
-  subjective: rawSubjective, setSubjective,
-  detectMilestones, calculateTrajectory, generateWeeklySummary, profile, onUpgrade, isPro
+  detectMilestones, calculateTrajectory, generateWeeklySummary, profile, onUpgrade, isPro,
+  embedded = false, externalView = null
 }) {
   const checkins = rawCheckins || [];
   const stack = rawStack || [];
   const logs = (rawLogs || []).map(l => l.compoundId ? l : { ...l, compoundId: l.cid });
 
   /* --- view state --- */
-  const [activeView, setActiveView] = useState('Log');
+  const [activeViewState, setActiveView] = useState('Log');
+  const activeView = externalView || activeViewState;
   const [step, setStep] = useState(1);
   // Pre-fill stats from last checkin if available.
   // Day number is DERIVED from profile.startDate + check-in date — no manual entry needed.
@@ -762,7 +742,7 @@ export default function BodyTab({
       ? stack.map(s => `${s.category || 'unknown'} (${s.dose || '?'}${s.unit || 'mcg'} ${s.freq || s.frequency || 'daily'})`).join('; ')
       : 'none — recommend a starter protocol';
     const payload = {
-      model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: ANALYSIS_PROMPT,
+      model: AI_MODEL, max_tokens: 2500, temperature: 0, system: ANALYSIS_PROMPT,
       messages: [{ role: 'user', content: [
         ...buildImageBlocks(photos),
         { type: 'text', text: `${stats.weight} lbs, ${stats.waist}" waist.\nPhotos: ${photoLabels.join(', ')} (${photoLabels.length}).\nActive protocol categories: ${stackCategories}.\nGoal: ${profile?.primaryGoal || 'recomp'}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.\n${prevContext}` },
@@ -869,7 +849,7 @@ export default function BodyTab({
     const needWaist = aiEstimate.waist && !stats.waist;
     const estimateRequest = [needWeight && 'weight', needWaist && 'waist circumference'].filter(Boolean).join(' and ');
     const payload = {
-      model: 'claude-sonnet-4-20250514', max_tokens: 500, system: ESTIMATE_PROMPT,
+      model: AI_MODEL, max_tokens: 500, temperature: 0, system: ESTIMATE_PROMPT,
       messages: [{ role: 'user', content: [
         ...buildImageBlocks(photos),
         { type: 'text', text: `Estimate this person's ${estimateRequest}.\nHeight: ${heightStr}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.\nPhotos available: ${photoAngles.join(', ')} (${photoAngles.length} angle${photoAngles.length > 1 ? 's' : ''}).\nTime of day: ${timeContext}.\n${prevWeight}\n${prevWaist}\nProvide your best estimates adjusted for all factors.` },
@@ -999,7 +979,7 @@ export default function BodyTab({
      ============================================================ */
 
   const goldCard = { background: 'rgba(201,168,76,0.025)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 12, padding: '14px 16px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' };
-  const sectionLabel = { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700, color: T.t3, fontFamily: T.fb, marginBottom: 10 };
+  const sectionLabel = { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 500, color: T.t3, fontFamily: T.fm, marginBottom: 10 };
   const statCard = { background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 10px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.03)' };
 
   const REGION_FIELDS = [
@@ -1023,7 +1003,7 @@ export default function BodyTab({
      SEGMENTED CONTROL
      ============================================================ */
 
-  const renderSegments = () => (
+  const renderSegments = () => embedded ? null : (
     <div style={{ ...S.segWrap, overflowX: 'auto' }}>
       {VIEWS.map(v => (
         <button key={v} onClick={() => { setActiveView(v); if (v === 'Check') setStep(1); }}
@@ -1856,10 +1836,12 @@ export default function BodyTab({
 
   return (
     <div>
-      <header style={{ ...S.header, marginBottom: 12 }}>
-        <h1 style={{ ...S.brand, fontSize: 20 }}>BODY</h1>
-        <p style={S.sub}>Composition Analysis</p>
-      </header>
+      {!embedded && (
+        <header style={{ ...S.header, marginBottom: 12 }}>
+          <h1 style={{ ...S.brand, fontSize: 20 }}>BODY</h1>
+          <p style={S.sub}>Composition Analysis</p>
+        </header>
+      )}
 
       {renderSegments()}
 

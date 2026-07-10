@@ -630,9 +630,9 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
   const [photoStorageInfo, setPhotoStorageInfo] = useState(null);
 
   // Load photo storage size on mount
-  useState(() => {
+  useEffect(() => {
     getPhotoStorageSize().then(setPhotoStorageInfo).catch(() => {});
-  });
+  }, []);
 
   const handleExport = async (includePhotos = true) => {
     setExporting(true);
@@ -942,7 +942,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700, color: T.t3, fontFamily: T.fb }}>Active Compounds</div>
+          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 500, color: T.t3, fontFamily: T.fm }}>Active Compounds</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, color: T.gold, fontFamily: T.fm, fontWeight: 700 }}>{stack.length}</span>
             {stack.length > 3 && (
@@ -987,7 +987,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           return (
             <div style={{ marginTop: 16, marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700, color: T.t3, fontFamily: T.fb }}>Protocol Score</div>
+                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 500, color: T.t3, fontFamily: T.fm }}>Protocol Score</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: scoreColor, fontFamily: T.fm }}>{sa.score}</div>
                 <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fb, fontWeight: 500 }}>/100</div>
               </div>
@@ -1071,7 +1071,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
           </div>
         ) : (
           <div>
-            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700, color: T.t3, fontFamily: T.fb, marginBottom: 12 }}>Stack Breakdown</div>
+            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 500, color: T.t3, fontFamily: T.fm, marginBottom: 12 }}>Stack Breakdown</div>
             <StackDonut groups={pieData} total={stack.length} activeCat={activePieCat} onTapCat={setActivePieCat} />
             <PieLegend groups={pieData} total={stack.length} activeCat={activePieCat} onTapCat={setActivePieCat} />
           </div>

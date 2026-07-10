@@ -10,6 +10,7 @@ import BodyModel3D from '../components/BodyModel3D';
 import LIB from '../data/library';
 import { analyzeStack } from '../data/interactions';
 import { getAdherenceStats } from '../data/analytics';
+import PlasmaLevels from '../components/PlasmaLevels';
 
 /* -- Tissue quality analysis ---------------------------------------- */
 function analyzeSites(siteHistory) {
@@ -242,7 +243,7 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
         if (!compounds || compounds.length === 0) return null;
         return (
           <div key={g.id}>
-            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 700, color: T.t3, fontFamily: T.fb, marginBottom: 8, marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 500, color: T.t3, fontFamily: T.fm, marginBottom: 8, marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
               {TimingIcons[g.id] ? TimingIcons[g.id](T.t3, 12) : null}
               <span>{g.label}</span>
             </div>
@@ -1213,8 +1214,9 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
   return (
     <div>
       <header style={{ ...S.header, marginBottom: 8 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TRACK</h1><p style={S.sub}>Protocol Management</p></header>
-      <div style={{ ...S.segWrap, marginBottom: 12 }}>{[{ k: 'today', l: 'Today' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
-      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} onDeleteLog={handleDeleteLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('BODY') : null} />}
+      <div style={{ ...S.segWrap, marginBottom: 12, overflowX: 'auto' }}>{[{ k: 'today', l: 'Today' }, { k: 'levels', l: 'Levels' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, whiteSpace: 'nowrap', ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
+      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} onDeleteLog={handleDeleteLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('PROGRESS', 'checkin') : null} />}
+      {sv === 'levels' && <PlasmaLevels stack={stack} logs={logs} />}
       {sv === 'vials' && <VialsView vials={vials} logs={logs} onNewVial={handleNewVial} stack={stack} />}
       {sv === 'timeline' && <TimelineView logs={logs} stack={stack} checkins={checkins} profile={profile} />}
       {sv === 'sites' && <SitesView siteHistory={siteHistory} onLogSite={handleLogSite} stack={stack} siteAnalysis={siteAnalysis} siteLogStep={siteLogStep} siteLogData={siteLogData} onSiteLogStepAction={handleSiteLogStepAction} />}

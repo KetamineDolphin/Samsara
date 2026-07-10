@@ -154,7 +154,7 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
 }
 
 /* ── Main CalcTab ─────────────────────────── */
-export default function CalcTab({ cs, setCs, stack, onLogDose }) {
+export default function CalcTab({ cs, setCs, stack }) {
   const presets = useMemo(() => stack.map(s => ({ name: s.name, vialMg: s.vialMg, dose: s.dose, unit: s.unit, freq: s.frequency })), [stack]);
   const { vialMg, waterMl, doseMcg, doseUnit, freq, waterLocked, activePreset } = cs;
   const set = (k, v) => setCs(p => ({ ...p, [k]: v, activePreset: null }));
@@ -182,7 +182,7 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
     <div style={{ animation: "fadeUp .5s ease both" }}>
       <header style={{ ...S.header, marginBottom: 16 }}><SamsaraSymbol size={44} detail="full" /><h1 style={{ ...S.brand, marginTop: -2 }}>SAMSARA</h1><p style={{ ...S.sub, marginTop: 2 }}>Peptide Calculator</p></header>
       {presets.length > 0 && <div style={{ marginBottom: 21 }}>
-        <div style={{ fontSize: 10, letterSpacing: 1.8, fontWeight: 700, color: T.t3, fontFamily: T.fb, textTransform: 'uppercase', textAlign: 'center', marginBottom: 10 }}>Presets</div>
+        <div style={{ fontSize: 10, letterSpacing: 1.8, fontWeight: 500, color: T.t3, fontFamily: T.fm, textTransform: 'uppercase', textAlign: 'center', marginBottom: 10 }}>Presets</div>
         <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, padding: '9px 16px', ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>
       </div>}
       {/* First-use guidance */}
@@ -214,7 +214,6 @@ export default function CalcTab({ cs, setCs, stack, onLogDose }) {
         </div>
         {un > 100 && <div style={{ ...S.warning, background: 'rgba(255,180,50,0.06)', borderColor: 'rgba(255,180,50,0.12)', fontSize: 12, color: 'rgba(255,200,100,0.6)' }}>{"\u26A0"} Exceeds 100 units - verify inputs or split draws.</div>}
         {un > 0 && un < 2 && <div style={{ ...S.infoBox, fontSize: 12, color: 'rgba(201,168,76,0.5)' }}>{"\u2139"} Very small draw. Consider less BAC water.</div>}
-        {onLogDose && activePreset && <button onClick={() => { onLogDose(activePreset); if (navigator.vibrate) navigator.vibrate(40); }} style={{ ...S.logBtn, width: '100%', padding: '10px', textAlign: 'center', marginTop: 10 }}>Log This Dose {"\u2192"} Track</button>}
       </div>}
       <div style={{ opacity: 0.5, marginTop: 4 }}><CalcDisclaimer /></div>
     </div>

@@ -140,6 +140,59 @@ export const COMPOUND_RULES = {
       severity: 'warning',
       note: '2 weeks on, 2 weeks off mandatory. Receptor downregulation.',
       source: 'Clinical protocol'
+    },
+    {
+      targetId: 'hgh',
+      type: 'caution',
+      severity: 'warning',
+      note: 'Exogenous GH + exogenous IGF-1 is redundant on the same axis and additive for hypoglycemia and organ-growth risk. Monitor blood glucose.',
+      source: 'Endocrinology'
+    },
+    {
+      targetId: 'semaglutide',
+      type: 'caution',
+      severity: 'warning',
+      note: 'IGF-1 LR3 is directly hypoglycemic; stacking with a GLP-1 agonist compounds the risk. Keep fast-acting carbs on hand and monitor glucose.',
+      source: 'Pharmacology'
+    },
+    {
+      targetId: 'tirzepatide',
+      type: 'caution',
+      severity: 'warning',
+      note: 'IGF-1 LR3 is directly hypoglycemic; stacking with a GLP-1/GIP agonist compounds the risk. Keep fast-acting carbs on hand and monitor glucose.',
+      source: 'Pharmacology'
+    },
+    {
+      targetId: 'retatrutide',
+      type: 'caution',
+      severity: 'warning',
+      note: 'IGF-1 LR3 is directly hypoglycemic; stacking with a triple incretin agonist compounds the risk. Keep fast-acting carbs on hand and monitor glucose.',
+      source: 'Pharmacology'
+    }
+  ],
+  igf1_des: [
+    {
+      targetId: 'hgh',
+      type: 'caution',
+      severity: 'warning',
+      note: 'Exogenous GH + exogenous IGF-1 is redundant on the same axis and additive for hypoglycemia risk. Monitor blood glucose.',
+      source: 'Endocrinology'
+    }
+  ],
+  melanotan1: [
+    {
+      targetId: 'melanotan2',
+      type: 'redundant',
+      severity: 'warning',
+      note: 'Both are melanocortin agonists. Additive melanogenic and cardiovascular (blood pressure) effects. Do not combine.',
+      source: 'Pharmacology'
+    },
+    {
+      targetId: 'pt141',
+      type: 'caution',
+      severity: 'warning',
+      note: 'Both are melanocortin agonists → additive transient blood-pressure elevation. Do not stack.',
+      source: 'Pharmacology'
     }
   ],
 
@@ -343,10 +396,17 @@ export const COMPOUND_RULES = {
   methylene_blue: [
     {
       targetId: 'selank',
+      type: 'conflict',
+      severity: 'danger',
+      note: 'Methylene blue is a potent MAO-A inhibitor. Combined with serotonergic compounds it can cause serotonin syndrome — a potentially fatal reaction. Do not combine.',
+      source: 'FDA Drug Safety Communication'
+    },
+    {
+      targetId: 'methylene_blue',
       type: 'caution',
-      severity: 'warning',
-      note: 'Both affect serotonin pathways. Monitor mood carefully.',
-      source: 'Pharmacology'
+      severity: 'danger',
+      note: 'MAO-A inhibitor: contraindicated with SSRIs, SNRIs, MAOIs, TCAs, and triptans (serotonin syndrome risk). Non-emergency use requires stopping serotonergic drugs ~2 weeks prior.',
+      source: 'FDA Drug Safety Communication'
     }
   ],
   dihexa: [
@@ -547,9 +607,9 @@ export const COMPOUND_RULES = {
   pt141: [
     {
       targetId: 'melanotan2',
-      type: 'redundant',
+      type: 'caution',
       severity: 'warning',
-      note: 'Both are melanocortin agonists. MT2 is longer acting. Do not combine.',
+      note: 'Both are melanocortin (MC4R) agonists → additive transient blood-pressure elevation and sympathetic outflow, not just redundancy. Both list uncontrolled hypertension as a contraindication. Do not combine.',
       source: 'Pharmacology'
     }
   ]

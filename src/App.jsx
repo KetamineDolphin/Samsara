@@ -8,8 +8,7 @@ import { TabIcons } from './components/Shared';
 import OnboardingFlow from './components/OnboardingFlow';
 import CalcTab from './tabs/CalcTab';
 import TrackTab from './tabs/TrackTab';
-import BodyTab from './tabs/BodyTab';
-import MetricsTab from './tabs/MetricsTab';
+import ProgressTab from './tabs/ProgressTab';
 import ProfileTab from './tabs/ProfileTab';
 import SearchOverlay from './components/SearchOverlay';
 import { DisclaimerGate } from './components/Disclaimers';
@@ -22,7 +21,7 @@ import { useProStatus, canUseFeature } from './hooks/useProStatus';
 import { UpgradeScreen } from './components/ProGate';
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Hanken+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
@@ -47,7 +46,7 @@ input[type=text],input[type=file]{-webkit-appearance:none}
 ::-webkit-scrollbar{display:none}
 `;
 
-const TABS = ['CALC', 'TRACK', 'BODY', 'METRICS', 'PROFILE'];
+const TABS = ['CALC', 'TRACK', 'PROGRESS', 'PROFILE'];
 
 export default function App() {
   // Split storage - each key persisted independently
@@ -104,11 +103,15 @@ export default function App() {
   // Pro subscription status
   const { isPro, purchase, restore } = useProStatus(profile, setProfile);
 
-  const tab = settings.tab || 'CALC';
+  // Migrate legacy BODY/METRICS tabs (merged into PROGRESS) so a
+  // persisted tab from an older version doesn't render blank.
+  const rawTab = settings.tab || 'CALC';
+  const tab = (rawTab === 'BODY' || rawTab === 'METRICS') ? 'PROGRESS' : rawTab;
   const setTab = (t) => setSettings(p => ({ ...p, tab: t }));
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [focusCompoundId, setFocusCompoundId] = useState(null);
+  const [progressView, setProgressView] = useState(null);
 
   const handleOnboardingComplete = (quickStartCompound) => {
     if (quickStartCompound) {
@@ -160,21 +163,20 @@ export default function App() {
         <div style={S.root}><div style={S.bgGlow} />
           <div ref={contentRef} style={S.content}>
             <div key={tab} style={{ animation: 'tabFadeIn .25s ease both' }}>
-              {tab === 'CALC' && <CalcTab cs={cs} setCs={setCs} stack={stack} profile={profile} />}
-              {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} onNavigate={setTab} />}
-              {tab === 'BODY' && <BodyTab checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} profile={profile} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
-              {tab === 'METRICS' && <MetricsTab checkins={checkins} logs={logs} stack={stack} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
+              {tab === 'CALC' && <CalcTab cs={cs} setCs={setCs} stack={stack} />}
+              {tab === 'TRACK' && <TrackTab logs={logs} setLogs={setLogs} vials={vials} setVials={setVials} stack={stack} siteHistory={siteHistory} setSiteHistory={setSiteHistory} subjective={subjective} setSubjective={setSubjective} checkins={checkins} profile={profile} onNavigate={(t, view) => { if (view) setProgressView(view); setTab(t); }} />}
+              {tab === 'PROGRESS' && <ProgressTab initialView={progressView} checkins={checkins} setCheckins={setCheckins} stack={stack} logs={logs} subjective={subjective} setSubjective={setSubjective} detectMilestones={detectMilestones} calculateTrajectory={calculateTrajectory} generateWeeklySummary={generateWeeklySummary} getAdherenceStats={getAdherenceStats} getSubjectiveChartData={getSubjectiveChartData} profile={profile} labResults={labResults} setLabResults={setLabResults} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
               {tab === 'PROFILE' && <ProfileTab stack={stack} setStack={setStack} profile={profile} setProfile={setProfile} logs={logs} checkins={checkins} settings={settings} setSettings={setSettings} focusCompoundId={focusCompoundId} clearFocusCompound={() => setFocusCompoundId(null)} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />}
             </div>
           </div>
           {showUpgrade && <UpgradeScreen onClose={() => setShowUpgrade(false)} onRestore={async () => { const ok = await restore(); if (ok) setShowUpgrade(false); }} onPurchase={async (plan) => { const ok = await purchase(plan); if (ok) setShowUpgrade(false); }} />}
-          {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} onNavigate={(t, compoundId) => { if (compoundId) setFocusCompoundId(compoundId); setTab(t); setShowSearch(false); }} logs={logs} checkins={checkins} stack={stack} labResults={labResults} />}
+          {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} onNavigate={(t, compoundId, view) => { if (compoundId) setFocusCompoundId(compoundId); if (view) setProgressView(view); setTab(t); setShowSearch(false); }} logs={logs} checkins={checkins} stack={stack} labResults={labResults} />}
           <nav style={S.tabBar}>
             <button onClick={() => setShowSearch(true)} style={{ ...S.tabBtn, opacity: 0.6 }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="rgba(140,160,180,0.6)" strokeWidth="1.5" /><line x1="12.5" y1="12.5" x2="17" y2="17" stroke="rgba(140,160,180,0.6)" strokeWidth="1.5" strokeLinecap="round" /></svg>
-              <span style={{ ...S.tabLabel, color: 'rgba(140,160,180,0.4)' }}>SEARCH</span>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="rgba(242,239,233,0.42)" strokeWidth="1.5" /><line x1="12.5" y1="12.5" x2="17" y2="17" stroke="rgba(242,239,233,0.42)" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              <span style={{ ...S.tabLabel, color: 'rgba(242,239,233,0.34)' }}>SEARCH</span>
             </button>
-            {TABS.map(t => { const active = tab === t, color = active ? T.amberFull : 'rgba(140,160,180,0.4)';
+            {TABS.map(t => { const active = tab === t, color = active ? T.gold : 'rgba(242,239,233,0.34)';
             return <button key={t} onClick={() => setTab(t)} style={S.tabBtn}>{TabIcons[t](color)}<span style={{ ...S.tabLabel, color, fontWeight: active ? 700 : 400 }}>{t}</span>{active && <div style={S.tabLine} />}</button>;
           })}</nav>
         </div>

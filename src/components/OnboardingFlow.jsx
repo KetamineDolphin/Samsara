@@ -636,7 +636,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
               </div>
               <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid ' + T.border }}>
                 <div style={{ fontSize: 12, color: T.t1, fontFamily: T.fb, fontWeight: 600, marginBottom: 2 }}>{'\u2728'} AI Body Analysis</div>
-                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.5 }}>Upload progress photos in the Body tab for AI-powered composition tracking.</div>
+                <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.5 }}>Upload progress photos under Progress → Check-in for AI-powered composition tracking.</div>
               </div>
             </div>
 

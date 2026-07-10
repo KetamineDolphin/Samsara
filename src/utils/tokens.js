@@ -13,10 +13,10 @@ const T = {
   amberFull: "rgba(255,180,50,1)",
   teal: "rgba(0,210,180,0.8)",
   purple: "rgba(150,120,220,0.8)",
-  t1: "#f0ece4",
-  t2: "rgba(240,236,228,0.5)",
-  t3: "rgba(240,236,228,0.25)",
-  t4: "rgba(240,236,228,0.12)",
+  t1: "#f2efe9",
+  t2: "rgba(242,239,233,0.5)",
+  t3: "rgba(242,239,233,0.25)",
+  t4: "rgba(242,239,233,0.12)",
   inactive: "rgba(140,160,180,0.3)",
   green: "#5cb870",
   greenS: "rgba(92,184,112,0.1)",
@@ -25,7 +25,7 @@ const T = {
   warnT: "rgba(255,200,100,0.85)",
   red: "rgba(220,80,80,0.7)",
   fd: "'Cormorant Garamond','Garamond',serif",
-  fb: "'Inter','-apple-system','SF Pro Text','Helvetica Neue',sans-serif",
+  fb: "'Hanken Grotesk','-apple-system','SF Pro Text','Helvetica Neue',sans-serif",
   fm: "'DM Mono','SF Mono',ui-monospace,monospace",
 };
 

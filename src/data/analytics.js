@@ -14,6 +14,8 @@
 // Helpers
 // ─────────────────────────────────────────
 
+import { AI_MODEL } from '../utils/ai';
+
 function toISO(d) {
   if (!d) return '';
   if (typeof d === 'string') return d.slice(0, 10);
@@ -53,22 +55,65 @@ function parseBFMidpoint(est) {
 }
 
 function linReg(xs, ys) {
+  return weightedLinReg(xs, ys, null);
+}
+
+/**
+ * Weighted least-squares linear regression with goodness-of-fit
+ * statistics. When `weights` is null, all points weigh equally.
+ *
+ * Body-composition trends are noisy and non-stationary (water,
+ * glycogen, plateaus), so we exponentially up-weight recent
+ * check-ins: a point measured `d` days before the latest one gets
+ * weight 0.5^(d / halfLifeDays). This tracks the *current* rate of
+ * change instead of being dragged by stale early data.
+ *
+ * Returns slope, intercept, R² (weighted), and the standard error
+ * of the slope — which downstream code turns into a projection
+ * confidence band.
+ */
+function weightedLinReg(xs, ys, weights) {
   const n = xs.length;
-  if (n < 2) return { slope: 0, intercept: ys[0] || 0 };
+  if (n < 2) return { slope: 0, intercept: ys[0] || 0, r2: 0, slopeSE: 0, n };
 
-  let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  const w = weights || xs.map(() => 1);
+  let sw = 0, swx = 0, swy = 0, swxy = 0, swx2 = 0;
   for (let i = 0; i < n; i++) {
-    sx += xs[i];
-    sy += ys[i];
-    sxy += xs[i] * ys[i];
-    sx2 += xs[i] * xs[i];
+    sw += w[i];
+    swx += w[i] * xs[i];
+    swy += w[i] * ys[i];
+    swxy += w[i] * xs[i] * ys[i];
+    swx2 += w[i] * xs[i] * xs[i];
   }
-  const denom = n * sx2 - sx * sx;
-  if (denom === 0) return { slope: 0, intercept: sy / n };
+  const denom = sw * swx2 - swx * swx;
+  if (denom === 0) return { slope: 0, intercept: swy / sw, r2: 0, slopeSE: 0, n };
 
-  const slope = (n * sxy - sx * sy) / denom;
-  const intercept = (sy - slope * sx) / n;
-  return { slope, intercept };
+  const slope = (sw * swxy - swx * swy) / denom;
+  const intercept = (swy - slope * swx) / sw;
+
+  // Weighted R² and residual variance for the slope standard error.
+  const meanY = swy / sw;
+  let ssRes = 0, ssTot = 0;
+  for (let i = 0; i < n; i++) {
+    const fit = slope * xs[i] + intercept;
+    ssRes += w[i] * (ys[i] - fit) ** 2;
+    ssTot += w[i] * (ys[i] - meanY) ** 2;
+  }
+  const r2 = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+
+  // SE(slope) from weighted residuals. Effective df = n − 2.
+  const df = Math.max(1, n - 2);
+  const sxxW = swx2 - (swx * swx) / sw; // weighted Σw(x−x̄)²
+  const slopeSE = sxxW > 0 ? Math.sqrt((ssRes / df) / sxxW) : 0;
+
+  return { slope, intercept, r2, slopeSE, n };
+}
+
+// Exponential recency weights keyed to a half-life in days.
+function recencyWeights(xs, halfLifeDays) {
+  if (!xs.length) return [];
+  const latest = Math.max(...xs);
+  return xs.map((x) => Math.pow(0.5, (latest - x) / halfLifeDays));
 }
 
 // ─────────────────────────────────────────
@@ -254,101 +299,93 @@ export function calculateTrajectory(checkins, targetWeight, targetWaist) {
   const today = todayISO();
   const todayDay = diffDays(origin, today);
 
-  // ── Weight regression ──
-  const wPts = sorted.filter((c) => c.weight != null);
-  let weightTrend = null;
-  let daysToTargetWeight = null;
-  let projectedWeightDate = null;
-
-  if (wPts.length >= 5) {
-    const xs = wPts.map((c) => diffDays(origin, c.date));
-    const ys = wPts.map((c) => c.weight);
-    const reg = linReg(xs, ys);
-
-    // lbs per week = slope * 7
-    weightTrend = round2(reg.slope * 7);
-
-    if (targetWeight != null && reg.slope !== 0) {
-      const currentW = reg.slope * todayDay + reg.intercept;
-      // Only project if trend moves toward target
-      const goingDown = reg.slope < 0 && currentW > targetWeight;
-      const goingUp = reg.slope > 0 && currentW < targetWeight;
-      if (goingDown || goingUp) {
-        const targetDay = (targetWeight - reg.intercept) / reg.slope;
-        daysToTargetWeight = Math.max(0, Math.ceil(targetDay - todayDay));
-        projectedWeightDate = addDays(today, daysToTargetWeight);
-      }
-    }
-  }
-
-  // ── Waist regression ──
-  const waPts = sorted.filter((c) => c.waist != null);
-  let waistTrend = null;
-  let daysToTargetWaist = null;
-  let projectedWaistDate = null;
-
-  if (waPts.length >= 5) {
-    const xs = waPts.map((c) => diffDays(origin, c.date));
-    const ys = waPts.map((c) => c.waist);
-    const reg = linReg(xs, ys);
-
-    waistTrend = round2(reg.slope * 7);
-
-    if (targetWaist != null && reg.slope !== 0) {
-      const currentWa = reg.slope * todayDay + reg.intercept;
-      const goingDown = reg.slope < 0 && currentWa > targetWaist;
-      const goingUp = reg.slope > 0 && currentWa < targetWaist;
-      if (goingDown || goingUp) {
-        const targetDay = (targetWaist - reg.intercept) / reg.slope;
-        daysToTargetWaist = Math.max(0, Math.ceil(targetDay - todayDay));
-        projectedWaistDate = addDays(today, daysToTargetWaist);
-      }
-    }
-  }
-
-  // Build projection data points for chart overlays
-  const weightProjection = [];
-  const waistProjection = [];
-  if (wPts.length >= 5) {
-    const xs = wPts.map((c) => diffDays(origin, c.date));
-    const ys = wPts.map((c) => c.weight);
-    const reg = linReg(xs, ys);
-    // Add projected line from latest data point to target (or 30 days forward)
-    const lastDay = xs[xs.length - 1];
-    const endDay = daysToTargetWeight ? todayDay + daysToTargetWeight : todayDay + 30;
-    const steps = Math.min(8, Math.max(3, Math.ceil((endDay - lastDay) / 7)));
-    for (let i = 0; i <= steps; i++) {
-      const d = lastDay + ((endDay - lastDay) * i / steps);
-      const projected = reg.slope * d + reg.intercept;
-      const dateStr = addDays(origin, Math.round(d));
-      weightProjection.push({ label: dateStr.slice(5), value: round2(projected) });
-    }
-  }
-  if (waPts.length >= 5) {
-    const xs = waPts.map((c) => diffDays(origin, c.date));
-    const ys = waPts.map((c) => c.waist);
-    const reg = linReg(xs, ys);
-    const lastDay = xs[xs.length - 1];
-    const endDay = daysToTargetWaist ? todayDay + daysToTargetWaist : todayDay + 30;
-    const steps = Math.min(8, Math.max(3, Math.ceil((endDay - lastDay) / 7)));
-    for (let i = 0; i <= steps; i++) {
-      const d = lastDay + ((endDay - lastDay) * i / steps);
-      const projected = reg.slope * d + reg.intercept;
-      const dateStr = addDays(origin, Math.round(d));
-      waistProjection.push({ label: dateStr.slice(5), value: round2(projected) });
-    }
-  }
+  const weight = projectMetric(sorted, 'weight', targetWeight, origin, todayDay, today);
+  const waist = projectMetric(sorted, 'waist', targetWaist, origin, todayDay, today);
 
   return {
-    weightTrend,
-    waistTrend,
-    daysToTargetWeight,
-    daysToTargetWaist,
-    projectedWeightDate,
-    projectedWaistDate,
-    weightProjection,
-    waistProjection,
+    weightTrend: weight.trend,
+    waistTrend: waist.trend,
+    daysToTargetWeight: weight.daysToTarget,
+    daysToTargetWaist: waist.daysToTarget,
+    projectedWeightDate: weight.projectedDate,
+    projectedWaistDate: waist.projectedDate,
+    weightProjection: weight.projection,
+    waistProjection: waist.projection,
+    // New: quantified confidence for each projection.
+    weightFit: weight.fit,
+    waistFit: waist.fit,
+    weightDateRange: weight.dateRange,
+    waistDateRange: waist.dateRange,
   };
+}
+
+/**
+ * Fit one metric (weight or waist), project the date it reaches a
+ * target, and quantify the uncertainty. Uses recency-weighted
+ * regression (14-day half-life) so the projection follows the
+ * current trend rather than the whole noisy history.
+ */
+function projectMetric(sorted, key, target, origin, todayDay, today) {
+  const empty = { trend: null, daysToTarget: null, projectedDate: null, projection: [], fit: null, dateRange: null };
+  const pts = sorted.filter((c) => c[key] != null);
+  if (pts.length < 5) return empty;
+
+  const xs = pts.map((c) => diffDays(origin, c.date));
+  const ys = pts.map((c) => c[key]);
+  const weights = recencyWeights(xs, 14);
+  const reg = weightedLinReg(xs, ys, weights);
+
+  const trend = round2(reg.slope * 7); // units per week
+  const fit = { r2: round2(reg.r2), weeklyRate: trend, n: reg.n };
+
+  let daysToTarget = null;
+  let projectedDate = null;
+  let dateRange = null;
+
+  if (target != null && reg.slope !== 0) {
+    const current = reg.slope * todayDay + reg.intercept;
+    const goingDown = reg.slope < 0 && current > target;
+    const goingUp = reg.slope > 0 && current < target;
+    if (goingDown || goingUp) {
+      const targetDay = (target - reg.intercept) / reg.slope;
+      daysToTarget = Math.max(0, Math.ceil(targetDay - todayDay));
+      projectedDate = addDays(today, daysToTarget);
+
+      // Confidence band: perturb the slope by ±1 SE and re-solve the
+      // crossing day. Wider spread → less certain ETA.
+      if (reg.slopeSE > 0) {
+        const optimistic = reg.slope + Math.sign(reg.slope) * reg.slopeSE;
+        const pessimistic = reg.slope - Math.sign(reg.slope) * reg.slopeSE;
+        const dayA = (target - reg.intercept) / optimistic;
+        const earliest = Math.max(0, Math.ceil(dayA - todayDay));
+        let latest = null;
+        // A flatter slope may never reach target; guard the division.
+        const stillConverges = (reg.slope < 0 && pessimistic < 0) || (reg.slope > 0 && pessimistic > 0);
+        if (stillConverges) {
+          const dayB = (target - reg.intercept) / pessimistic;
+          latest = Math.max(0, Math.ceil(dayB - todayDay));
+        }
+        dateRange = {
+          earliest: addDays(today, earliest),
+          latest: latest != null ? addDays(today, latest) : null,
+        };
+      }
+    }
+  }
+
+  // Projected line for chart overlays.
+  const projection = [];
+  const lastDay = xs[xs.length - 1];
+  const endDay = daysToTarget ? todayDay + daysToTarget : todayDay + 30;
+  const steps = Math.min(8, Math.max(3, Math.ceil((endDay - lastDay) / 7)));
+  for (let i = 0; i <= steps; i++) {
+    const d = lastDay + ((endDay - lastDay) * i / steps);
+    const projected = reg.slope * d + reg.intercept;
+    const dateStr = addDays(origin, Math.round(d));
+    projection.push({ label: dateStr.slice(5), value: round2(projected) });
+  }
+
+  return { trend, daysToTarget, projectedDate, projection, fit, dateRange };
 }
 
 // ─────────────────────────────────────────
@@ -438,7 +475,7 @@ export async function generateWeeklySummary(logs, checkins, stack, { subjective,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: AI_MODEL,
         max_tokens: 1000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],

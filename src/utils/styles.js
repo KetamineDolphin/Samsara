@@ -10,7 +10,7 @@ import T from './tokens';
 const S = {
   root: { minHeight: '100vh', background: 'linear-gradient(180deg,#0C0D10 0%,#0A0B0D 45%,#08090B 100%)', color: T.t1, fontFamily: T.fb, maxWidth: 480, margin: '0 auto', position: 'relative', overflow: 'hidden' },
   bgGlow: { position: 'fixed', top: -120, left: '50%', transform: 'translateX(-50%)', width: 500, height: 500, borderRadius: '50%', pointerEvents: 'none', background: 'radial-gradient(circle,rgba(201,168,76,0.03) 0%,transparent 70%)', zIndex: 0 },
-  content: { position: 'relative', zIndex: 1, padding: '13px 13px 90px', overflowY: 'auto', height: '100vh' },
+  content: { position: 'relative', zIndex: 1, padding: 'max(13px, env(safe-area-inset-top, 13px)) 13px 104px', overflowY: 'auto', height: '100vh', overscrollBehavior: 'contain' },
 
   /* Page headers */
   header: { textAlign: 'center', marginBottom: 21 },
@@ -107,8 +107,8 @@ const S = {
   segOn: { background: T.goldS, color: T.gold, fontWeight: 600 },
 
   /* Bottom tab bar */
-  tabBar: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: 'rgba(8,9,11,0.88)', backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', borderTop: `1px solid ${T.border}`, boxShadow: '0 -1px 18px rgba(201,168,76,0.06)', padding: '8px 0 env(safe-area-inset-bottom, 8px)', zIndex: 100 },
-  tabBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '4px 8px', position: 'relative' },
+  tabBar: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: 'rgba(8,9,11,0.9)', backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', borderTop: `1px solid ${T.border}`, boxShadow: '0 -10px 35px rgba(0,0,0,0.35)', padding: '9px 4px max(8px, env(safe-area-inset-bottom, 8px))', zIndex: 100 },
+  tabBtn: { flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '4px 2px', position: 'relative' },
   tabLabel: { fontSize: 8.5, fontWeight: 500, letterSpacing: 1.4, fontFamily: T.fm, transition: 'color .2s' },
   tabLine: { position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 16, height: 2, borderRadius: 1, background: T.gold },
   tabDot: { position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', width: 3, height: 3, borderRadius: '50%', background: T.gold },

@@ -21,7 +21,7 @@ function searchAll(query, { logs, checkins, stack, labResults }) {
   // Search dose logs
   (logs || []).forEach(l => {
     if ((l.name && l.name.toLowerCase().includes(q)) || (l.doseLabel && l.doseLabel.toLowerCase().includes(q))) {
-      results.push({ type: 'log', id: l.date + l.cid, title: l.name, subtitle: l.doseLabel + ' \u00B7 ' + l.date + ' ' + (l.time || ''), tab: 'TRACK' });
+      results.push({ type: 'log', id: l.date + l.cid, title: l.name, subtitle: l.doseLabel + ' \u00B7 ' + l.date + ' ' + (l.time || ''), tab: 'TRACK', view: 'history' });
     }
   });
 
@@ -29,15 +29,18 @@ function searchAll(query, { logs, checkins, stack, labResults }) {
   (checkins || []).forEach((c, i) => {
     const txt = [c.weight && (c.weight + ' lbs'), c.waist && (c.waist + '"'), c.analysis && c.analysis.keyObservation].filter(Boolean).join(' ').toLowerCase();
     if (txt.includes(q) || (c.date && c.date.includes(q))) {
-      results.push({ type: 'checkin', id: 'ci' + i, title: 'Check-in Day ' + (c.day || '?'), subtitle: (c.weight || '?') + ' lbs \u00B7 ' + (c.date || ''), tab: 'PROGRESS', view: 'checkin' });
+      results.push({ type: 'checkin', id: 'ci' + i, title: 'Check-in Day ' + (c.day || '?'), subtitle: (c.weight || '?') + ' \u00B7 ' + (c.date || ''), tab: 'PROGRESS', view: 'history' });
     }
   });
 
   // Search lab results
   (labResults || []).forEach((lab, i) => {
-    const txt = [lab.date, lab.source, ...(lab.markers || []).map(m => m.name + ' ' + m.value)].filter(Boolean).join(' ').toLowerCase();
+    const markerEntries = Array.isArray(lab.markers)
+      ? lab.markers.map(m => [m.name, m.value])
+      : Object.entries(lab.parsedMarkers || lab.markers || {});
+    const txt = [lab.date, lab.source, ...markerEntries.map(([name, value]) => name + ' ' + value)].filter(Boolean).join(' ').toLowerCase();
     if (txt.includes(q)) {
-      results.push({ type: 'lab', id: 'lab' + i, title: 'Lab Results ' + (lab.date || ''), subtitle: (lab.markers || []).length + ' markers', tab: 'PROGRESS', view: 'labs' });
+      results.push({ type: 'lab', id: 'lab' + i, title: 'Lab Results ' + (lab.date || ''), subtitle: markerEntries.length + ' markers', tab: 'PROGRESS', view: 'labs' });
     }
   });
 

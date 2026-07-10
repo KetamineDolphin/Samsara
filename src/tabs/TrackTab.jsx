@@ -4,8 +4,8 @@ import T from '../utils/tokens';
 import S from '../utils/styles';
 import { CAT_C } from '../utils/tokens';
 import { TIMING_GROUPS, FREQ_META } from '../data/library';
-import { getToday, getNow, fmtDose, daysNextWeekly, getWeekStart, concOf, unitsOf, usableDoses, vialAge, vialFreshness, suggestNextSite, getEscalationStatus, makeId, SITE_LIST } from '../utils/helpers';
-import { BodyMap, TimingIcons } from '../components/Shared';
+import { getToday, getNow, fmtDose, getWeekStart, localISODate, concOf, unitsOf, usableDoses, vialAge, vialFreshness, suggestNextSite, getEscalationStatus, makeId, SITE_LIST } from '../utils/helpers';
+import { BodyMap, TimingIcons, SectionNav } from '../components/Shared';
 import BodyModel3D from '../components/BodyModel3D';
 import LIB from '../data/library';
 import { analyzeStack } from '../data/interactions';
@@ -17,7 +17,7 @@ function analyzeSites(siteHistory) {
   const result = {};
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 14);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = localISODate(cutoff);
 
   SITE_LIST.forEach(site => {
     const siteLogs = (siteHistory || []).filter(s => s.siteId === site.id);
@@ -71,23 +71,21 @@ const QUALITY_OPTIONS = [
 const TREND_ARROWS = { improving: '\u2191', declining: '\u2193', stable: '\u2192' };
 const TREND_COLORS = { improving: T.green, declining: 'rgba(220,80,80,0.8)', stable: T.t3 };
 
-/* -- RetaCard (weekly compound card) ---------------------------------------- */
-function RetaCard({ compound, logged, onLog }) {
-  const dn = daysNextWeekly();
-  const dayOfWeek = new Date().getDay();
+/* -- Weekly compound card ---------------------------------------- */
+function WeeklyCard({ compound, weekLogs, target, onLog, onUndo }) {
+  const complete = weekLogs.length >= target;
   const esc = compound.escalation;
   const escStatus = getEscalationStatus(compound);
   const history = esc ? esc.protocol.slice(0, esc.currentStep + 1) : [];
 
   return (
-    <div style={{ ...S.card, borderColor: logged ? 'rgba(92,184,112,0.15)' : T.goldM + '30', padding: '12px 14px', marginBottom: 6 }}>
+    <div style={{ ...S.card, borderColor: complete ? 'rgba(92,184,112,0.15)' : T.goldM + '30', padding: '13px 14px', marginBottom: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>Retatrutide</span>
-        <span style={{ fontSize: 9, color: T.gold, fontFamily: T.fm, letterSpacing: 1 }}>WEEKLY</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb }}>{compound.name}</span>
+        <span style={{ fontSize: 9, color: complete ? T.green : T.gold, fontFamily: T.fm, letterSpacing: 1 }}>{complete ? 'COMPLETE' : `${weekLogs.length}/${target} THIS WEEK`}</span>
       </div>
-      <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, marginBottom: 8 }}>Current: <span style={{ color: T.gold }}>{compound.dose} {compound.unit}</span></div>
-      <div style={{ display: 'flex', gap: 2, marginBottom: 6 }}>{[0, 1, 2, 3, 4, 5, 6].map(d => <div key={d} style={{ flex: 1, height: 4, borderRadius: 2, background: d < dayOfWeek ? 'rgba(201,168,76,0.3)' : d === dayOfWeek ? T.gold : 'rgba(255,255,255,0.04)' }} />)}</div>
-      <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 6 }}>{dayOfWeek}/7 days</div>
+      <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, marginBottom: 9 }}>{compound.dose} {compound.unit}{unitsOf(compound) > 0 && <span style={{ color: T.gold }}> · {unitsOf(compound).toFixed(1)}u draw</span>}<span style={{ color: T.t3 }}> · {compound.timing || 'Follow your schedule'}</span></div>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 9 }}>{Array.from({ length: target }, (_, i) => <div key={i} style={{ flex: 1, height: 5, borderRadius: 3, background: i < weekLogs.length ? T.gold : 'rgba(255,255,255,0.06)' }} />)}</div>
       {history.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
         {history.map((s, i) => <span key={i} style={{ fontSize: 10, fontFamily: T.fm, color: i === history.length - 1 ? T.gold : T.t3 }}>{s}{i === history.length - 1 ? ' \u2190' : ''}{i < history.length - 1 ? ' \u2192' : ''}</span>)}
       </div>}
@@ -95,14 +93,14 @@ function RetaCard({ compound, logged, onLog }) {
         {escStatus.canStep ? '\u2191 Ready: ' + escStatus.nextDose + ' ' + compound.unit : escStatus.label}
       </div>}
       {compound.nextPlanned && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>Next planned: <span style={{ color: T.amber }}>{compound.nextPlanned} {compound.unit}</span></div>}
-      <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, marginBottom: 8 }}>Next: <span style={{ color: T.t2 }}>Sunday</span> {'\u00B7'} {dn}d</div>
-      {logged ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', padding: '6px 0' }}>
+      {complete ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '6px 0' }}>
           <span style={{ color: '#5cb870', fontSize: 16, animation: 'checkSpring .4s cubic-bezier(.34,1.56,.64,1) both', display: 'inline-block' }}>{'\u2713'}</span>
-          <span style={{ fontSize: 10, color: '#5cb870', fontFamily: T.fm }}>{logged.time}</span>
+          <span style={{ fontSize: 10, color: '#5cb870', fontFamily: T.fm }}>{weekLogs[weekLogs.length - 1]?.time || 'Logged'}</span>
+          <button onClick={() => onUndo?.(weekLogs[weekLogs.length - 1])} style={{ ...S.btnGhost, padding: '2px 6px', fontSize: 9, color: T.t3 }}>Undo</button>
         </div>
       ) : (
-        <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(compound); }} style={{ ...S.logBtn, width: '100%', padding: '8px', textAlign: 'center', fontSize: 12 }} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log This Week's Dose</button>
+        <button onClick={() => { if (navigator.vibrate) navigator.vibrate(40); onLog(compound); }} style={{ ...S.logBtn, width: '100%', padding: '8px', textAlign: 'center', fontSize: 12 }} onTouchStart={e => e.currentTarget.style.animation = 'logPress .3s ease both'} onAnimationEnd={e => e.currentTarget.style.animation = ''}>Log dose {weekLogs.length + 1} of {target}</button>
       )}
     </div>
   );
@@ -112,7 +110,7 @@ function RetaCard({ compound, logged, onLog }) {
 const ROUTE_LABELS = { subq: 'SubQ', im: 'IM', oral: 'Oral', topical: 'Topical', intranasal: 'Nasal', iv: 'IV' };
 const ROUTE_ICONS = { subq: '\uD83D\uDC89', im: '\uD83D\uDC89', oral: '\uD83D\uDC8A', topical: '\u2728', intranasal: '\uD83D\uDCA8', iv: '\uD83C\uDFE5' };
 
-function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis, onQuickCheckin }) {
+function TodayView({ logs, onLog, onDeleteLog, onDeleteEntry, stack, onOpenSites, siteAnalysis, onQuickCheckin, onExplore }) {
   const t = getToday();
   const [routePickerId, setRoutePickerId] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -233,7 +231,8 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
         <div style={{ ...S.card, padding: '16px', textAlign: 'center', marginBottom: 8 }}>
           <div style={{ fontSize: 24, marginBottom: 6, opacity: 0.3 }}>{'\u2295'}</div>
           <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, fontFamily: T.fb, marginBottom: 4 }}>Add Your First Compound</div>
-          <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, lineHeight: 1.5 }}>Browse the library in Profile to add compounds to your stack.</div>
+          <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fb, lineHeight: 1.5, marginBottom: 12 }}>Build a protocol first, then Today becomes your clear daily schedule.</div>
+          {onExplore && <button onClick={onExplore} style={{ ...S.logBtn, width: '100%' }}>Explore the library</button>}
         </div>
       )}
 
@@ -248,19 +247,19 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
               <span>{g.label}</span>
             </div>
             {compounds.map(c => {
-              const isW = c.frequency === 'weekly';
+              const isW = ['weekly', '2x_week', '3x_week'].includes(c.frequency);
               const freqMeta = FREQ_META[c.frequency] || FREQ_META.daily;
               const expectedPerDay = freqMeta.perDay || 1;
-              const maxPerDay = freqMeta.maxPerDay || 3;
+              const maxPerDay = freqMeta.perDay || 1;
               const todayLogs = isW
                 ? logs.filter(l => l.cid === c.id && l.date >= getWeekStart())
                 : logs.filter(l => l.cid === c.id && l.date === t);
               const logged = todayLogs.length > 0 ? todayLogs[todayLogs.length - 1] : null; // most recent
               const dosesDone = todayLogs.length;
-              const allDosesDone = isW ? dosesDone >= 1 : dosesDone >= expectedPerDay;
+              const allDosesDone = isW ? dosesDone >= (freqMeta.perWeek || 1) : dosesDone >= expectedPerDay;
               const atMax = dosesDone >= maxPerDay;
               const cNotes = interactionMap[c.libId] || [];
-              if (isW) return <RetaCard key={c.id} compound={c} logged={logged} onLog={onLog} />;
+              if (isW) return <WeeklyCard key={c.id} compound={c} weekLogs={todayLogs} target={freqMeta.perWeek || 1} onLog={onLog} onUndo={onDeleteEntry} />;
               const libEntry = LIB.find(l => l.id === c.libId) || {};
               const routes = libEntry.administrationOptions || [];
               const hasMultiRoute = routes.length > 1;
@@ -277,7 +276,8 @@ function TodayView({ logs, onLog, onDeleteLog, stack, onOpenSites, siteAnalysis,
 
               // Build clean meta line
               const metaParts = [fmtDose(c)];
-              if (maxPerDay > 1) metaParts.push(`${dosesDone}/${maxPerDay}`);
+              if (unitsOf(c) > 0) metaParts.push(`${unitsOf(c).toFixed(1)}u draw`);
+              if (expectedPerDay > 1) metaParts.push(`${dosesDone}/${expectedPerDay}`);
               if (logged && logged.route) metaParts.push(ROUTE_LABELS[logged.route] || logged.route);
               const statusPart = (() => {
                 if (logged && isPeaking) return { text: 'peaking', color: T.teal };
@@ -1144,8 +1144,9 @@ function LogView({ logs: rawLogs }) {
 }
 
 /* -- TrackTab root ---------------------------------------- */
-export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile, onNavigate }) {
-  const [sv, setSv] = useState('today');
+export default function TrackTab({ initialView, logs, setLogs, vials, setVials, stack, siteHistory, setSiteHistory, subjective, setSubjective, checkins, profile, onNavigate }) {
+  const [sv, setSv] = useState(['today', 'history', 'tools'].includes(initialView) ? initialView : 'today');
+  const [toolView, setToolView] = useState(null);
   const [siteLogStep, setSiteLogStep] = useState(null);
   const [siteLogData, setSiteLogData] = useState({ siteId: null, compound: '', tissueQuality: 3, notes: '' });
 
@@ -1168,6 +1169,13 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
       }
       return true;
     }));
+  }, [setLogs]);
+  const handleDeleteEntry = useCallback((entry) => {
+    if (!entry) return;
+    setLogs(p => {
+      const idx = p.findIndex(l => l === entry || (l.cid === entry.cid && l.date === entry.date && l.time === entry.time && l.doseLabel === entry.doseLabel));
+      return idx < 0 ? p : p.filter((_, i) => i !== idx);
+    });
   }, [setLogs]);
   const handleNewVial = useCallback(id => { setVials(p => ({ ...p, [id]: { startDate: getToday(), reconDate: getToday() } })); }, [setVials]);
 
@@ -1213,14 +1221,16 @@ export default function TrackTab({ logs, setLogs, vials, setVials, stack, siteHi
 
   return (
     <div>
-      <header style={{ ...S.header, marginBottom: 8 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TRACK</h1><p style={S.sub}>Protocol Management</p></header>
-      <div style={{ ...S.segWrap, marginBottom: 12, overflowX: 'auto' }}>{[{ k: 'today', l: 'Today' }, { k: 'levels', l: 'Levels' }, { k: 'vials', l: 'Vials' }, { k: 'timeline', l: 'Timeline' }, { k: 'sites', l: 'Sites' }, { k: 'log', l: 'Log' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, whiteSpace: 'nowrap', ...(sv === s.k ? S.segOn : {}) }}>{s.l}</button>)}</div>
-      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} onDeleteLog={handleDeleteLog} stack={stack} onOpenSites={() => setSv('sites')} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('PROGRESS', 'checkin') : null} />}
-      {sv === 'levels' && <PlasmaLevels stack={stack} logs={logs} />}
-      {sv === 'vials' && <VialsView vials={vials} logs={logs} onNewVial={handleNewVial} stack={stack} />}
-      {sv === 'timeline' && <TimelineView logs={logs} stack={stack} checkins={checkins} profile={profile} />}
-      {sv === 'sites' && <SitesView siteHistory={siteHistory} onLogSite={handleLogSite} stack={stack} siteAnalysis={siteAnalysis} siteLogStep={siteLogStep} siteLogData={siteLogData} onSiteLogStepAction={handleSiteLogStepAction} />}
-      {sv === 'log' && <LogView logs={logs} />}
+      <header style={{ ...S.header, marginBottom: 10 }}><h1 style={{ ...S.brand, fontSize: 20 }}>TODAY</h1><p style={S.sub}>Your Protocol</p></header>
+      <SectionNav ariaLabel="Today sections" value={sv} onChange={(next) => { setSv(next); if (next !== 'tools') setToolView(null); }} items={[{ k: 'today', l: 'Schedule' }, { k: 'history', l: 'History' }, { k: 'tools', l: 'Tools' }]} />
+      {sv === 'today' && <TodayView logs={logs} onLog={handleLog} onDeleteLog={handleDeleteLog} onDeleteEntry={handleDeleteEntry} stack={stack} onOpenSites={() => { setSv('tools'); setToolView('sites'); }} siteAnalysis={siteAnalysis} onQuickCheckin={onNavigate ? () => onNavigate('PROGRESS', 'checkin') : null} onExplore={onNavigate ? () => onNavigate('PROFILE') : null} />}
+      {sv === 'history' && <TimelineView logs={logs} stack={stack} checkins={checkins} profile={profile} />}
+      {sv === 'tools' && !toolView && <div style={{ animation: 'fadeUp .3s ease both' }}>
+        <div style={{ fontFamily: T.fd, fontSize: 21, color: T.t1, marginBottom: 5 }}>Protocol tools</div>
+        <div style={{ fontFamily: T.fb, fontSize: 12, color: T.t3, lineHeight: 1.55, marginBottom: 14 }}>Open a focused workspace without adding another row of tabs.</div>
+        {[{ k: 'levels', title: 'Plasma Levels', body: 'See estimated active compound levels over time.', accent: T.teal }, { k: 'vials', title: 'Vial Supply', body: 'Track reconstitution age, remaining doses, and replacements.', accent: T.gold }, { k: 'sites', title: 'Site Rotation', body: 'Review tissue quality and choose the next location.', accent: T.purple }].map(tool => <button key={tool.k} onClick={() => setToolView(tool.k)} style={{ ...S.card, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '15px 16px', display: 'flex', alignItems: 'center', gap: 13 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: tool.accent, boxShadow: `0 0 12px ${tool.accent}` }} /><span style={{ flex: 1 }}><span style={{ display: 'block', fontFamily: T.fb, fontSize: 14, color: T.t1, fontWeight: 650 }}>{tool.title}</span><span style={{ display: 'block', fontFamily: T.fb, fontSize: 11, color: T.t3, lineHeight: 1.45, marginTop: 3 }}>{tool.body}</span></span><span style={{ color: T.gold }}>→</span></button>)}
+      </div>}
+      {sv === 'tools' && toolView && <div><button onClick={() => setToolView(null)} style={{ ...S.btnGhost, padding: '2px 0 12px', color: T.gold }}>← All tools</button>{toolView === 'levels' && <PlasmaLevels stack={stack} logs={logs} />}{toolView === 'vials' && <VialsView vials={vials} logs={logs} onNewVial={handleNewVial} stack={stack} />}{toolView === 'sites' && <SitesView siteHistory={siteHistory} onLogSite={handleLogSite} stack={stack} siteAnalysis={siteAnalysis} siteLogStep={siteLogStep} siteLogData={siteLogData} onSiteLogStepAction={handleSiteLogStepAction} />}</div>}
     </div>
   );
 }

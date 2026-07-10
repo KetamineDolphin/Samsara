@@ -27,23 +27,18 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
     ticks.push(
       <g key={i}>
         <line x1={m ? 54 : 59} y1={y} x2={68} y2={y} stroke={m ? "rgba(201,168,76,0.22)" : "rgba(240,236,228,0.06)"} strokeWidth={m ? 1.2 : 0.6} />
-        {m && <text x={48} y={y + 3.5} textAnchor="end" fill={T.t3} fontSize="10" fontFamily={T.fm}>{i * 10}</text>}
+        {m && <text x={48} y={y + 3.5} textAnchor="end" fill={T.t3} fontSize="10" fontFamily={T.fm}>{Math.round((i / 10) * max)}</text>}
       </g>
     );
   }
 
-  const yToUnits = useCallback((clientY) => {
+  const dragToUnits = useCallback((clientY) => {
     if (!svgRef.current) return null;
-    const svg = svgRef.current;
-    const rect = svg.getBoundingClientRect();
-    const svgH = rect.height;
-    const scaleY = 300 / svgH;
-    const svgY = (clientY - rect.top) * scaleY;
-    const clamped = Math.min(Math.max(svgY, bT), bB);
-    const unitsPct = 1 - (clamped - bT) / bH;
-    const units = Math.round(unitsPct * max / SNAP) * SNAP;
+    const rect = svgRef.current.getBoundingClientRect();
+    const deltaSvg = (startY.current - clientY) * (300 / rect.height);
+    const units = Math.round((startUnits.current + (deltaSvg / bH) * max) / SNAP) * SNAP;
     return Math.min(Math.max(units, 0), max);
-  }, [max, bT, bB, bH, SNAP]);
+  }, [max, bH, SNAP]);
 
   const emitChange = useCallback((units) => {
     if (units !== lastEmitted.current && onUnitsChange) {
@@ -65,8 +60,8 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
     const dy = Math.abs(e.touches[0].clientY - startY.current);
     if (dragging.current === 'pending' && dy < DEAD_ZONE) return;
     dragging.current = true;
-    emitChange(yToUnits(e.touches[0].clientY));
-  }, [yToUnits, emitChange, DEAD_ZONE]);
+    emitChange(dragToUnits(e.touches[0].clientY));
+  }, [dragToUnits, emitChange, DEAD_ZONE]);
 
   const handleTouchEnd = useCallback(() => {
     dragging.current = false;
@@ -85,8 +80,8 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
     const dy = Math.abs(e.clientY - startY.current);
     if (dragging.current === 'pending' && dy < DEAD_ZONE) return;
     dragging.current = true;
-    emitChange(yToUnits(e.clientY));
-  }, [yToUnits, emitChange, DEAD_ZONE]);
+    emitChange(dragToUnits(e.clientY));
+  }, [dragToUnits, emitChange, DEAD_ZONE]);
 
   const handleMouseUp = useCallback(() => {
     dragging.current = false;
@@ -99,6 +94,15 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
     window.addEventListener('touchend', up);
     return () => { window.removeEventListener('mouseup', up); window.removeEventListener('touchend', up); };
   }, []);
+  useEffect(() => { lastEmitted.current = null; }, [cl]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (!onUnitsChange) return;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); emitChange(Math.min(max, cl + SNAP)); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); emitChange(Math.max(0, cl - SNAP)); }
+    if (e.key === 'Home') { e.preventDefault(); emitChange(0); }
+    if (e.key === 'End') { e.preventDefault(); emitChange(max); }
+  }, [onUnitsChange, emitChange, max, cl, SNAP]);
 
   // Dose info from units for the label
   const dMg = concentration > 0 ? (cl / 100) * concentration : 0;
@@ -115,6 +119,13 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onKeyDown={handleKeyDown}
+        tabIndex={onUnitsChange ? 0 : -1}
+        role="slider"
+        aria-label="Syringe draw units"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={Number(cl.toFixed(1))}
       >
         <defs>
           <linearGradient id="syF" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.amber} stopOpacity="0.85" /><stop offset="100%" stopColor={T.gold} stopOpacity="0.4" /></linearGradient>
@@ -155,16 +166,31 @@ function InteractiveSyringe({ u, max = 100, onUnitsChange, concentration }) {
 
 /* ── Main CalcTab ─────────────────────────── */
 export default function CalcTab({ cs, setCs, stack }) {
-  const presets = useMemo(() => stack.map(s => ({ name: s.name, vialMg: s.vialMg, dose: s.dose, unit: s.unit, freq: s.frequency })), [stack]);
+  const presets = useMemo(() => stack.map(s => ({ id: s.id, name: s.name, vialMg: s.vialMg, waterMl: s.waterMl, dose: s.dose, unit: s.unit, freq: s.frequency })), [stack]);
   const { vialMg, waterMl, doseMcg, doseUnit, freq, waterLocked, activePreset } = cs;
+  const [copied, setCopied] = useState(false);
   const set = (k, v) => setCs(p => ({ ...p, [k]: v, activePreset: null }));
   const rr = useRef(null);
+  const wasOk = useRef(false);
   const vN = parseFloat(vialMg) || 0, wN = parseFloat(waterMl) || 0, dN = parseFloat(doseMcg) || 0;
   const cn = wN > 0 ? vN / wN : 0, dMg = doseUnit === "mcg" ? dN / 1000 : dN, vol = cn > 0 ? dMg / cn : 0, un = vol * 100;
-  const dv = dMg > 0 ? vN / dMg : 0, freqM = FREQ_META[freq] || FREQ_META.daily, ds = freqM.perWeek > 0 ? dv / (freqM.perWeek / 7) : 0;
+  const theoreticalDoses = dMg > 0 ? vN / dMg : 0;
+  const usableDoseCount = Math.floor(theoreticalDoses * .95);
+  const freqM = FREQ_META[freq] || FREQ_META.daily, ds = freqM.perWeek > 0 ? usableDoseCount / (freqM.perWeek / 7) : 0;
   const ok = vN > 0 && wN > 0 && dN > 0;
-  const ap = useCallback(p => { setCs({ vialMg: String(p.vialMg), waterMl: "2", doseMcg: String(p.dose), doseUnit: p.unit, freq: p.freq, waterLocked: true, activePreset: p.name }); }, [setCs]);
-  useEffect(() => { if (ok && rr.current) rr.current.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [ok, un]);
+  const syringeSize = [30, 50, 100].includes(Number(cs.syringeSize)) ? Number(cs.syringeSize) : 100;
+  const ap = useCallback(p => { setCs(prev => ({ ...prev, vialMg: String(p.vialMg), waterMl: String(p.waterMl || 2), doseMcg: String(p.dose), doseUnit: p.unit, freq: p.freq, waterLocked: true, activePreset: p.name })); }, [setCs]);
+  useEffect(() => {
+    if (ok && !wasOk.current && rr.current) rr.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    wasOk.current = ok;
+  }, [ok]);
+
+  const switchDoseUnit = useCallback((nextUnit) => {
+    if (nextUnit === doseUnit) return;
+    const current = parseFloat(doseMcg);
+    const converted = Number.isFinite(current) ? (nextUnit === 'mg' ? current / 1000 : current * 1000) : doseMcg;
+    setCs(p => ({ ...p, doseUnit: nextUnit, doseMcg: Number.isFinite(converted) ? String(Number(converted.toFixed(nextUnit === 'mg' ? 4 : 1))) : converted, activePreset: null }));
+  }, [doseUnit, doseMcg, setCs]);
 
   // Back-calculate dose from syringe drag
   const handleSyringeChange = useCallback((newUnits) => {
@@ -175,45 +201,63 @@ export default function CalcTab({ cs, setCs, stack }) {
     const newDose = doseUnit === "mcg" ? newDMg * 1000 : newDMg;
     // Round to reasonable precision
     const rounded = doseUnit === "mcg" ? Math.round(newDose) : Math.round(newDose * 100) / 100;
-    setCs(p => ({ ...p, doseMcg: String(rounded) }));
+    setCs(p => ({ ...p, doseMcg: String(rounded), activePreset: null }));
   }, [cn, doseUnit, setCs]);
+
+  const dilutionOptions = useMemo(() => [1, 2, 3].map(water => ({ water, units: vN > 0 ? (dMg / (vN / water)) * 100 : 0 })), [vN, dMg]);
+  const copyCalculation = useCallback(async () => {
+    const summary = `${activePreset || 'Calculation'}: ${vN} mg vial + ${wN} mL water = ${cn.toFixed(2)} mg/mL. ${dN} ${doseUnit} dose = ${un.toFixed(1)} units (${vol.toFixed(3)} mL) on a U-100 syringe.`;
+    try { await navigator.clipboard.writeText(summary); setCopied(true); window.setTimeout(() => setCopied(false), 1600); } catch { setCopied(false); }
+  }, [activePreset, vN, wN, cn, dN, doseUnit, un, vol]);
 
   return (
     <div style={{ animation: "fadeUp .5s ease both" }}>
-      <header style={{ ...S.header, marginBottom: 16 }}><SamsaraSymbol size={44} detail="full" /><h1 style={{ ...S.brand, marginTop: -2 }}>SAMSARA</h1><p style={{ ...S.sub, marginTop: 2 }}>Peptide Calculator</p></header>
+      <header style={{ ...S.header, marginBottom: 16 }}><SamsaraSymbol size={38} detail="medium" /><h1 style={{ ...S.brand, marginTop: -2, fontSize: 22 }}>CALCULATOR</h1><p style={{ ...S.sub, marginTop: 2 }}>Vial → Dose → Draw</p></header>
       {presets.length > 0 && <div style={{ marginBottom: 21 }}>
-        <div style={{ fontSize: 10, letterSpacing: 1.8, fontWeight: 500, color: T.t3, fontFamily: T.fm, textTransform: 'uppercase', textAlign: 'center', marginBottom: 10 }}>Presets</div>
+        <div style={{ fontSize: 10, letterSpacing: 1.8, fontWeight: 500, color: T.t3, fontFamily: T.fm, textTransform: 'uppercase', textAlign: 'center', marginBottom: 10 }}>Your Mix Cards</div>
         <div style={S.pills}>{presets.map(p => <button key={p.name} onClick={() => ap(p)} style={{ ...S.pill, padding: '9px 16px', ...(activePreset === p.name ? S.pillOn : {}) }}>{p.name}</button>)}</div>
       </div>}
       {/* First-use guidance */}
       {presets.length === 0 && !vialMg && (
         <div style={{ ...S.card, padding: '14px 16px', marginBottom: 13, borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.04)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginBottom: 4 }}>{'\u2139'} Your First Calculation</div>
-          <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fm, lineHeight: 1.6 }}>Enter your vial size, water volume, and desired dose. Samsara will calculate exactly how many units to draw on your syringe. Add compounds in the Profile tab to see presets here.</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.teal, fontFamily: T.fb, marginBottom: 4 }}>Your First Calculation</div>
+          <div style={{ fontSize: 12, color: T.t2, fontFamily: T.fb, lineHeight: 1.6 }}>Use the values on your vial and the dose provided by your clinician. The result updates live and shows the exact U-100 syringe mark.</div>
         </div>
       )}
       <div style={S.card}>
-        <div style={S.field}><label style={S.label}>Vial Size</label><div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={vialMg} onChange={e => set("vialMg", e.target.value)} style={{ ...S.input, minWidth: 0 }} /><span style={{ ...S.tag, flexShrink: 0 }}>mg</span></div></div>
+        <div style={{ ...S.resLabel, color: T.gold, marginBottom: 13 }}>1 · MIX</div>
+        <div style={S.field}><label htmlFor="calc-vial" style={S.label}>Vial amount</label><div style={{ ...S.frow, gap: 6 }}><input id="calc-vial" type="number" min="0" inputMode="decimal" placeholder="5" value={vialMg} onChange={e => set("vialMg", e.target.value)} style={{ ...S.input, minWidth: 0 }} /><span style={{ ...S.tag, flexShrink: 0 }}>mg</span></div></div>
         <div style={S.divider} />
-        <div style={S.field}><label style={S.label}>Bacteriostatic Water</label><div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={waterMl} onChange={e => { if (!waterLocked) set("waterMl", e.target.value) }} readOnly={waterLocked} style={{ ...S.input, minWidth: 0, ...(waterLocked ? { opacity: 0.4 } : {}) }} /><span style={S.tag}>ml</span><button aria-label={waterLocked ? 'Unlock' : 'Lock to 2ml'} onClick={() => setCs(p => ({ ...p, waterLocked: !p.waterLocked, waterMl: !p.waterLocked ? "2" : p.waterMl }))} style={{ ...S.lockBtn, padding: '10px 12px', fontSize: 13, flexShrink: 0, ...(waterLocked ? { ...S.lockOn, boxShadow: '0 0 8px rgba(201,168,76,0.12)' } : {}) }}>{waterLocked ? "\u25C6" : "\u25C7"}</button></div></div>
+        <div style={S.field}><label htmlFor="calc-water" style={S.label}>Water volume</label><div style={{ ...S.frow, gap: 6 }}><input id="calc-water" type="number" min="0" inputMode="decimal" placeholder="2" value={waterMl} onChange={e => { if (!waterLocked) set("waterMl", e.target.value); }} readOnly={waterLocked} style={{ ...S.input, minWidth: 0, ...(waterLocked ? { color: T.t2 } : {}) }} /><span style={S.tag}>ml</span><button aria-label={waterLocked ? 'Unlock water volume' : 'Lock water volume'} aria-pressed={waterLocked} onClick={() => setCs(p => ({ ...p, waterLocked: !p.waterLocked, activePreset: null }))} style={{ ...S.lockBtn, padding: '10px 12px', fontSize: 13, flexShrink: 0, ...(waterLocked ? { ...S.lockOn, boxShadow: '0 0 8px rgba(201,168,76,0.12)' } : {}) }}>{waterLocked ? "\u25C6" : "\u25C7"}</button></div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>{[1, 2, 3].map(w => <button key={w} onClick={() => setCs(p => ({ ...p, waterMl: String(w), waterLocked: true, activePreset: null }))} aria-pressed={wN === w} style={{ ...S.pill, flex: 1, padding: '6px 8px', fontSize: 10, ...(wN === w ? S.pillOn : {}) }}>{w} ml</button>)}</div>
+        </div>
         <div style={S.divider} />
-        <div style={S.field}><label style={S.label}>Desired Dose</label><div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={doseMcg} onChange={e => set("doseMcg", e.target.value)} style={{ ...S.input, minWidth: 0 }} /><div style={{ ...S.togGrp, flexShrink: 0 }}>{["mcg", "mg"].map(u => <button key={u} onClick={() => set("doseUnit", u)} style={{ ...S.togBtn, padding: '13px 14px', ...(doseUnit === u ? S.togOn : {}) }}>{u}</button>)}</div></div></div>
+        <div style={{ ...S.resLabel, color: T.gold, marginBottom: 13 }}>2 · PRESCRIBED DOSE</div>
+        <div style={S.field}><label htmlFor="calc-dose" style={S.label}>Dose amount</label><div style={{ ...S.frow, gap: 6 }}><input id="calc-dose" type="number" min="0" inputMode="decimal" placeholder="250" value={doseMcg} onChange={e => set("doseMcg", e.target.value)} style={{ ...S.input, minWidth: 0 }} /><div style={{ ...S.togGrp, flexShrink: 0 }}>{["mcg", "mg"].map(u => <button key={u} aria-pressed={doseUnit === u} onClick={() => switchDoseUnit(u)} style={{ ...S.togBtn, padding: '13px 14px', ...(doseUnit === u ? S.togOn : {}) }}>{u}</button>)}</div></div></div>
         <div style={S.divider} />
-        <div style={S.field}><label style={S.label}>Frequency</label><div style={{ ...S.frow, gap: 6 }}>{Object.entries(FREQ_META).filter(([k]) => ["daily", "2x_week", "weekly"].includes(k)).map(([k, v]) => <button key={k} onClick={() => setCs(p => ({ ...p, freq: k }))} style={{ ...S.freqBtn, ...(freq === k ? S.freqOn : {}) }}>{v.label}</button>)}</div></div>
+        <div style={S.field}><label style={S.label}>Syringe capacity</label><div style={{ display: 'flex', gap: 6 }}>{[30, 50, 100].map(size => <button key={size} aria-pressed={syringeSize === size} onClick={() => setCs(p => ({ ...p, syringeSize: size }))} style={{ ...S.freqBtn, ...(syringeSize === size ? S.freqOn : {}) }}>{size} units</button>)}</div></div>
+        <div style={S.divider} />
+        <div style={S.field}><label style={S.label}>Supply schedule <span style={{ textTransform: 'none', letterSpacing: 0, color: T.t4 }}>(does not change draw)</span></label><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>{Object.entries(FREQ_META).filter(([k]) => ["daily", "2x_day", "3x_day", "2x_week", "3x_week", "weekly"].includes(k)).map(([k, v]) => <button key={k} aria-pressed={freq === k} onClick={() => set("freq", k)} style={{ ...S.freqBtn, ...(freq === k ? S.freqOn : {}) }}>{v.label}</button>)}</div></div>
       </div>
-      {ok && <div ref={rr} style={{ ...S.resultCard, borderTop: '1.5px solid rgba(201,168,76,0.3)', boxShadow: '0 -1px 12px rgba(201,168,76,0.06), 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)', animation: "fadeUp .4s ease both" }}>
-        <div style={S.resRow}><span style={S.resLabel}>Concentration</span><span style={S.resGold}>{cn.toFixed(2)} mg/ml</span></div><div style={S.dividerGold} />
-        <div style={{ textAlign: "center", padding: "18px 0 8px" }}><span style={S.drawLabel}>Draw</span><span style={{ ...S.drawVal, fontSize: 48, letterSpacing: 1 }}>{un.toFixed(1)}<span style={{ ...S.drawUnit, fontSize: 18 }}> units</span></span><span style={S.drawSub}>({vol.toFixed(3)} ml on U-100 syringe)</span></div>
+      {ok && <div ref={rr} aria-live="polite" style={{ ...S.resultCard, borderTop: '1.5px solid rgba(201,168,76,0.3)', boxShadow: '0 -1px 12px rgba(201,168,76,0.06), 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)', animation: "fadeUp .4s ease both" }}>
+        <div style={S.resRow}><span style={{ ...S.resLabel, color: T.gold }}>3 · DRAW RESULT</span><button onClick={copyCalculation} style={{ ...S.btnGhost, padding: '4px 0', fontSize: 10, color: copied ? T.green : T.t2 }}>{copied ? 'Copied' : 'Copy calculation'}</button></div><div style={S.dividerGold} />
+        <div style={{ textAlign: "center", padding: "18px 0 8px" }}><span style={S.drawLabel}>Draw to the</span><span style={{ ...S.drawVal, fontSize: 48, letterSpacing: 1, color: un > syringeSize ? T.amber : T.t1 }}>{un.toFixed(1)}<span style={{ ...S.drawUnit, fontSize: 18 }}> unit mark</span></span><span style={S.drawSub}>{vol.toFixed(3)} ml on a U-100 syringe</span></div>
+        <div style={{ background: 'rgba(0,0,0,.22)', border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 12px', margin: '6px 0 10px', fontFamily: T.fm, fontSize: 9.5, color: T.t3, lineHeight: 1.65, textAlign: 'center' }}>{vN} mg ÷ {wN} ml = <span style={{ color: T.t2 }}>{cn.toFixed(2)} mg/ml</span><br />{dN} {doseUnit} ÷ concentration = <span style={{ color: T.gold }}>{un.toFixed(1)} units</span></div>
         <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
-          <InteractiveSyringe u={un} onUnitsChange={handleSyringeChange} concentration={cn} />
+          <InteractiveSyringe u={un} max={syringeSize} onUnitsChange={handleSyringeChange} concentration={cn} />
         </div><div style={S.dividerGold} />
         <div style={{ display: 'flex', justifyContent: 'space-around', gap: 6, paddingTop: 8 }}>
-          <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{dv.toFixed(0)}</span><span style={S.statL}>doses/vial</span></div>
+          <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{usableDoseCount}</span><span style={S.statL}>usable doses</span></div>
           <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{Math.floor(ds)}</span><span style={S.statL}>days supply</span></div>
           <div style={{ flex: 1, background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: '10px 4px', textAlign: 'center' }}><span style={S.statV}>{dMg.toFixed(dMg < 0.1 ? 3 : 2)}</span><span style={S.statL}>mg/dose</span></div>
         </div>
-        {un > 100 && <div style={{ ...S.warning, background: 'rgba(255,180,50,0.06)', borderColor: 'rgba(255,180,50,0.12)', fontSize: 12, color: 'rgba(255,200,100,0.6)' }}>{"\u26A0"} Exceeds 100 units - verify inputs or split draws.</div>}
-        {un > 0 && un < 2 && <div style={{ ...S.infoBox, fontSize: 12, color: 'rgba(201,168,76,0.5)' }}>{"\u2139"} Very small draw. Consider less BAC water.</div>}
+        {un > syringeSize && <div style={{ ...S.warning, fontSize: 12 }}>Result exceeds the selected {syringeSize}-unit syringe. Verify every input with your clinician or pharmacist before proceeding.</div>}
+        {un > 0 && un < 2 && <div style={{ ...S.infoBox, fontSize: 12 }}>Very small draw. More water produces a larger, easier-to-measure volume; confirm any dilution change with a pharmacist.</div>}
+      </div>}
+      {ok && <div style={{ ...S.card, padding: '14px', marginBottom: 13 }}>
+        <div style={{ ...S.resLabel, marginBottom: 10 }}>Dilution comparison</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 7 }}>{dilutionOptions.map(option => <button key={option.water} onClick={() => setCs(p => ({ ...p, waterMl: String(option.water), waterLocked: true, activePreset: null }))} style={{ background: wN === option.water ? T.goldS : 'rgba(255,255,255,.02)', border: `1px solid ${wN === option.water ? T.goldM : T.border}`, borderRadius: 10, padding: '10px 5px', cursor: 'pointer' }}><span style={{ display: 'block', fontFamily: T.fb, fontSize: 11, color: wN === option.water ? T.gold : T.t2 }}>{option.water} ml water</span><span style={{ display: 'block', fontFamily: T.fm, fontSize: 12, color: T.t1, marginTop: 5 }}>{option.units.toFixed(1)}u</span></button>)}</div>
+        <div style={{ fontFamily: T.fb, fontSize: 10.5, color: T.t3, lineHeight: 1.5, marginTop: 9 }}>Comparison only. Do not change a prescribed preparation without professional confirmation.</div>
       </div>}
       <div style={{ opacity: 0.5, marginTop: 4 }}><CalcDisclaimer /></div>
     </div>

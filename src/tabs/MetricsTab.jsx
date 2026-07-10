@@ -480,14 +480,14 @@ function SubjectiveLineChart({ data, color, label, height = 160 }) {
 // ============================================================================
 
 function SubjectiveLogForm({ metrics, loggedToday, subjective, todayStr, onSubmit }) {
-  const [values, setValues] = useState({});
+  const todayEntry = Array.isArray(subjective) ? subjective.find(s => s.date === todayStr) : null;
+  const [values, setValues] = useState(() => todayEntry || {});
   const [submitted, setSubmitted] = useState(loggedToday);
 
   // Reset when day changes
   useEffect(() => { setSubmitted(loggedToday); }, [loggedToday]);
 
   if (submitted) {
-    const todayEntry = Array.isArray(subjective) ? subjective.find(s => s.date === todayStr) : null;
     return (
       <div style={{ ...S.card, padding: '12px 14px', borderColor: 'rgba(92,184,112,0.15)', background: 'rgba(92,184,112,0.03)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -505,6 +505,7 @@ function SubjectiveLogForm({ metrics, loggedToday, subjective, todayStr, onSubmi
             </div>
           )}
         </div>
+        <button onClick={() => { setValues(todayEntry || {}); setSubmitted(false); }} style={{ ...S.btnGhost, width: '100%', marginTop: 10, padding: '5px', fontSize: 10, color: T.gold }}>Edit today’s state</button>
       </div>
     );
   }
@@ -580,7 +581,8 @@ function SubjectiveSection({ subjective, setSubjective, getSubjectiveChartData }
         todayStr={todayStr}
         onSubmit={(entry) => {
           if (setSubjective) {
-            const updated = logSubjective(subjective, { ...entry, date: todayStr });
+            const withoutToday = (subjective || []).filter(s => s.date !== todayStr);
+            const updated = logSubjective(withoutToday, { ...entry, date: todayStr });
             setSubjective(updated);
           }
         }}
@@ -606,6 +608,9 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
   const checkins = rawCheckins || [];
   const results = labResults || [];
   const sex = profile?.biologicalSex || 'male';
+  const isMetric = profile?.unitSystem === 'metric';
+  const weightUnit = isMetric ? 'kg' : 'lbs';
+  const waistUnit = isMetric ? 'cm' : 'in';
 
   const [svState, setSv] = useState('charts');
   const sv = externalView || svState;
@@ -769,6 +774,21 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
     if (!res.success) setAnalysisError(res.error);
   };
 
+  // ── State view: focused daily subjective check-in ──
+  if (sv === 'state') {
+    return (
+      <div style={{ animation: 'fadeUp .5s ease both' }}>
+        {!embedded && <header style={{ ...S.header, marginBottom: 14 }}><h1 style={{ ...S.brand, fontSize: 20 }}>STATE</h1><p style={S.sub}>Daily Signal</p></header>}
+        {segBar}
+        <div style={{ ...S.card, padding: '16px', marginBottom: 13, background: 'linear-gradient(145deg,rgba(0,210,180,.04),rgba(255,255,255,.018))' }}>
+          <div style={{ fontFamily: T.fd, fontSize: 21, color: T.t1, marginBottom: 5 }}>Data needs a human signal.</div>
+          <div style={{ fontFamily: T.fb, fontSize: 12, lineHeight: 1.55, color: T.t2 }}>Rate the day as it actually feels. Over time, Samsara connects these scores to your protocol rhythm.</div>
+        </div>
+        <SubjectiveSection subjective={subjective} setSubjective={setSubjective} getSubjectiveChartData={getSubjectiveChartData} />
+      </div>
+    );
+  }
+
   // ── Insights view: Adherence dashboard ──
   if (sv === 'insights') {
     const stats = getAdherenceStats ? getAdherenceStats(normalizedLogs, stack, 30) : { overallPct: 0, byCompound: [], currentStreak: 0, longestStreak: 0, bestDay: null, worstDay: null };
@@ -874,18 +894,16 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
               if (sub.length < 3) return null;
               const suggestions = [];
               const avgEnergy = sub.reduce((s, e) => s + (e.energy || 5), 0) / sub.length;
-              const avgSleep = sub.reduce((s, e) => s + (e.mood || 5), 0) / sub.length;
+              const avgMood = sub.reduce((s, e) => s + (e.mood || 5), 0) / sub.length;
               const avgHunger = sub.reduce((s, e) => s + (e.hunger || 5), 0) / sub.length;
-              // Check for GH secretagogues + poor sleep
-              const hasGHSS = stack.some(c => c.category === 'GH Secretagogue');
-              if (hasGHSS && avgSleep < 5) suggestions.push({ icon: '\uD83C\uDF19', text: 'Low mood/sleep scores detected. Try dosing GH secretagogues 30 min before bed on an empty stomach for better GH release.' });
+              if (avgMood < 5) suggestions.push({ icon: '\u25CB', text: 'Mood has averaged below 5/10. Treat that as a signal worth observing and discussing with your care team if it persists.' });
               // Low energy with stack
-              if (avgEnergy < 4.5) suggestions.push({ icon: '\u26A1', text: 'Energy is trending low. Consider timing stimulating peptides (like CJC-1295) to morning hours and ensure adequate recovery.' });
+              if (avgEnergy < 4.5) suggestions.push({ icon: '\u26A1', text: 'Energy is trending low. Review sleep, recovery, and timing with your clinician rather than changing the protocol from this signal alone.' });
               // High hunger with GLP-1
-              const hasGLP1 = stack.some(c => c.category === 'GLP-1 / Metabolic');
-              if (hasGLP1 && avgHunger > 6) suggestions.push({ icon: '\uD83C\uDF7D', text: 'Hunger scores remain high despite GLP-1 agonist. Consider gradual dose escalation per your protocol.' });
+              const hasGLP1 = stack.some(c => /semaglutide|tirzepatide|retatrutide|liraglutide|glp/i.test(`${c.name || ''} ${c.libId || ''}`));
+              if (hasGLP1 && avgHunger > 6) suggestions.push({ icon: '\uD83C\uDF7D', text: 'Hunger has remained above 6/10. Keep logging it and raise the pattern with your prescriber; do not adjust dose from this signal alone.' });
               // Good adherence celebration
-              if (stats.overallPct >= 90 && avgEnergy >= 6) suggestions.push({ icon: '\u2728', text: 'Excellent adherence and strong subjective scores. Your protocol appears well-dialed.' });
+              if (stats.overallPct >= 90 && avgEnergy >= 6) suggestions.push({ icon: '\u2728', text: 'Your records show strong consistency alongside solid energy. Keep collecting data before drawing conclusions.' });
               if (suggestions.length === 0) return null;
               return (
                 <div style={{ ...S.card, padding: 14, marginBottom: 13, borderLeft: `3px solid ${T.teal}` }}>
@@ -1329,7 +1347,7 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
   const wDelta = weightData.length >= 2 ? weightData[weightData.length - 1].value - weightData[0].value : 0;
   const waDelta = waistData.length >= 2 ? waistData[waistData.length - 1].value - waistData[0].value : 0;
 
-  const trajectory = calculateTrajectory ? calculateTrajectory(checkins, profile?.targetWeight || 170, profile?.targetWaist || 26) : {};
+  const trajectory = calculateTrajectory ? calculateTrajectory(checkins, profile?.targetWeight ?? null, profile?.targetWaist ?? null) : {};
   const milestones = detectMilestones ? detectMilestones(checkins) : [];
 
   return (
@@ -1345,14 +1363,14 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
               {trajectory.daysToTargetWeight && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: trajectory.daysToTargetWaist ? 8 : 0 }}>
                   <span style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, width: 50 }}>Weight</span>
-                  <span style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>170 lbs in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWeight}d</span></span>
+                  <span style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>{profile?.targetWeight} {weightUnit} in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWeight}d</span></span>
                   <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginLeft: 'auto' }}>{trajectory.projectedWeightDate}</span>
                 </div>
               )}
               {trajectory.daysToTargetWaist && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, width: 50 }}>Waist</span>
-                  <span style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>26in in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWaist}d</span></span>
+                  <span style={{ fontSize: 13, fontFamily: T.fm, color: T.t1 }}>{profile?.targetWaist} {waistUnit} in <span style={{ color: T.gold, fontWeight: 600 }}>{trajectory.daysToTargetWaist}d</span></span>
                   <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginLeft: 'auto' }}>{trajectory.projectedWaistDate}</span>
                 </div>
               )}
@@ -1380,10 +1398,10 @@ export default function MetricsTab({ checkins: rawCheckins, logs, stack, subject
             </div>
           )}
 
-          <ChartCard title="Body Weight" rightLabel={weightData.length ? `${weightData[weightData.length - 1].value} lbs ${'\u00B7'} ${wDelta >= 0 ? '+' : ''}${wDelta.toFixed(1)}` : ''}>
+          <ChartCard title="Body Weight" rightLabel={weightData.length ? `${weightData[weightData.length - 1].value} ${weightUnit} ${'\u00B7'} ${wDelta >= 0 ? '+' : ''}${wDelta.toFixed(1)}` : ''}>
             <LineChartVis data={weightData} color="rgba(0,210,180,0.8)" projectionData={trajectory.weightProjection} />
           </ChartCard>
-          <ChartCard title="Waist" rightLabel={waistData.length ? `${waistData[waistData.length - 1].value}" ${'\u00B7'} ${waDelta >= 0 ? '+' : ''}${waDelta.toFixed(1)}"` : ''}>
+          <ChartCard title="Waist" rightLabel={waistData.length ? `${waistData[waistData.length - 1].value} ${waistUnit} ${'\u00B7'} ${waDelta >= 0 ? '+' : ''}${waDelta.toFixed(1)}` : ''}>
             <LineChartVis data={waistData} color="rgba(201,168,76,0.8)" projectionData={trajectory.waistProjection} />
           </ChartCard>
           <ChartCard title="Recomp Signal" subtitle="Weight vs Waist - the real metric">

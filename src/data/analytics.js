@@ -543,10 +543,10 @@ export function getAdherenceStats(logs, stack, days) {
   // Identify daily compounds (the ones that
   // create a daily obligation to track)
   const dailyCompounds = stack.filter(
-    (c) => c.frequency === 'daily'
+    (c) => c.frequency === 'daily' || c.frequency === '2x_day' || c.frequency === '3x_day'
   );
   const weeklyCompounds = stack.filter(
-    (c) => c.frequency === 'weekly' || c.frequency === '2x_week'
+    (c) => c.frequency === 'weekly' || c.frequency === '2x_week' || c.frequency === '3x_week'
   );
 
   // ── Per-compound stats ──
@@ -580,17 +580,21 @@ export function getAdherenceStats(logs, stack, days) {
       expected = activeDays;
     } else if (freq === '2x_day') {
       expected = activeDays * 2;
+    } else if (freq === '3x_day') {
+      expected = activeDays * 3;
     } else if (freq === 'weekly') {
       expected = Math.max(1, Math.floor(activeDays / 7));
     } else if (freq === '2x_week') {
       expected = Math.max(1, Math.floor(activeDays / 7) * 2);
+    } else if (freq === '3x_week') {
+      expected = Math.max(1, Math.floor(activeDays / 7) * 3);
     } else {
       // intermittent / as_needed: no strict expectation
       expected = compLogs.length; // 100% by definition
     }
 
     const uniqueDays = new Set(compLogs.map((l) => l.date)).size;
-    const actual = freq === '2x_day' ? compLogs.length : freq === 'daily' ? uniqueDays : compLogs.length;
+    const actual = (freq === '2x_day' || freq === '3x_day') ? compLogs.length : freq === 'daily' ? uniqueDays : compLogs.length;
     const pct = expected > 0 ? Math.min(100, Math.round((actual / expected) * 100)) : 100;
     const missed = Math.max(0, expected - actual);
 
@@ -623,9 +627,10 @@ export function getAdherenceStats(logs, stack, days) {
       });
       // If no compounds were active yet on this day, skip (don't break streak)
       if (activeOnDay.length === 0) continue;
-      const allLogged = activeOnDay.every(
-        (c) => dayLogs.some((l) => l.cid === c.id || l.compoundId === c.id)
-      );
+      const allLogged = activeOnDay.every((c) => {
+        const target = c.frequency === '3x_day' ? 3 : c.frequency === '2x_day' ? 2 : 1;
+        return dayLogs.filter((l) => l.cid === c.id || l.compoundId === c.id).length >= target;
+      });
 
       if (allLogged) {
         tempStreak++;
@@ -655,10 +660,12 @@ export function getAdherenceStats(logs, stack, days) {
       dayCounts[dow]++;
 
       const dayLogs = safeLogs.filter((l) => l.date === d);
-      const logged = activeOnDay.filter(
-        (c) => dayLogs.some((l) => l.cid === c.id || l.compoundId === c.id)
-      ).length;
-      dayTotals[dow] += logged / activeOnDay.length;
+      const completion = activeOnDay.reduce((sum, c) => {
+        const target = c.frequency === '3x_day' ? 3 : c.frequency === '2x_day' ? 2 : 1;
+        const actual = dayLogs.filter((l) => l.cid === c.id || l.compoundId === c.id).length;
+        return sum + Math.min(1, actual / target);
+      }, 0);
+      dayTotals[dow] += completion / activeOnDay.length;
     }
   }
 

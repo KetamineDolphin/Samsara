@@ -4,7 +4,7 @@ import T from '../utils/tokens';
 import { CAT_C } from '../utils/tokens';
 import S from '../utils/styles';
 import LIB, { FREQ_META } from '../data/library';
-import { makeId, fmtDose, doseMgOf, usableDoses, getToday } from '../utils/helpers';
+import { makeId, fmtDose, doseMgOf, unitsOf, usableDoses, getToday } from '../utils/helpers';
 import { exportAllData, importAllData, clearAllData, getStorageSize, getPhotoStorageSize, getStorageHealth } from '../hooks/useStorage';
 import { analyzeStack, getCompoundInsights } from '../data/interactions';
 import { calculateTrajectory } from '../data/analytics';
@@ -12,6 +12,7 @@ import { isSupported, requestPermission, getPermission } from '../utils/notifica
 import CloudSync from '../components/CloudSync';
 import { ProLock, ProBadge } from '../components/ProGate';
 import { AboutDisclaimer } from '../components/Disclaimers';
+import { SectionNav } from '../components/Shared';
 
 // Pie chart category colors (explicit hex for SVG)
 const PIE_COLORS = {
@@ -291,13 +292,12 @@ function WeeklyLoadBars({ stack }) {
   const todayDow = new Date().getDay();
 
   const counts = [0, 0, 0, 0, 0, 0, 0];
+  let unscheduled = 0;
   stack.forEach(c => {
-    if (c.frequency === 'daily') {
-      for (let i = 0; i < 7; i++) counts[i]++;
-    } else if (c.frequency === '2x_week') {
-      counts[0]++;
-      counts[3]++;
-    } else if (c.frequency === 'weekly') {
+    const dailyCount = c.frequency === '3x_day' ? 3 : c.frequency === '2x_day' ? 2 : c.frequency === 'daily' ? 1 : 0;
+    if (dailyCount) {
+      for (let i = 0; i < 7; i++) counts[i] += dailyCount;
+    } else if (['weekly', '2x_week', '3x_week'].includes(c.frequency)) {
       const timing = (c.timing || '').toLowerCase();
       if (timing.includes('sun')) counts[6]++;
       else if (timing.includes('mon')) counts[0]++;
@@ -306,7 +306,7 @@ function WeeklyLoadBars({ stack }) {
       else if (timing.includes('thu')) counts[3]++;
       else if (timing.includes('fri')) counts[4]++;
       else if (timing.includes('sat')) counts[5]++;
-      else counts[6]++;
+      else unscheduled += c.frequency === '3x_week' ? 3 : c.frequency === '2x_week' ? 2 : 1;
     }
   });
 
@@ -328,7 +328,7 @@ function WeeklyLoadBars({ stack }) {
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4 }}>
+    <div><div style={{ display: 'flex', justifyContent: 'space-between', gap: 4 }}>
       {dayLabels.map((d, i) => {
         const count = counts[i];
         const barH = maxCount > 0 ? Math.max((count / maxCount) * 50, count > 0 ? 6 : 2) : 2;
@@ -348,7 +348,7 @@ function WeeklyLoadBars({ stack }) {
           </div>
         );
       })}
-    </div>
+    </div>{unscheduled > 0 && <div style={{ marginTop: 9, fontFamily: T.fb, fontSize: 10.5, color: T.t3, textAlign: 'center' }}>{unscheduled} weekly {unscheduled === 1 ? 'dose has' : 'doses have'} no weekday assigned</div>}</div>
   );
 }
 
@@ -434,7 +434,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     if (!profile?.startDate) return 0;
     const start = new Date(profile.startDate + 'T00:00:00');
     const now = new Date();
-    return Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    return Math.max(1, Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1);
   }, [profile?.startDate]);
 
   const cats = useMemo(() => ['All', ...[...new Set(LIB.map(p => p.category))]], []);
@@ -495,7 +495,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     costData.items.forEach(item => {
       if (item.pricePerVial <= 0 || item.doses <= 0) return;
       const costPerDose = item.pricePerVial / item.doses;
-      const count = logs.filter(l => (l.cid === item.libId || l.compoundId === item.libId) && (!startDate || l.date >= startDate)).length;
+      const count = logs.filter(l => (l.cid === item.id || l.compoundId === item.id) && (!startDate || l.date >= startDate)).length;
       spent += count * costPerDose;
     });
     return spent;
@@ -548,7 +548,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
     return { ninetyDay, oneYear, costToWeightGoal, costToWaistGoal };
   }, [costData.totalDaily, costData.totalYearly, checkins, profile?.targetWeight, profile?.targetWaist]);
 
-  const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency === 'intermittent' || p.frequency === 'as_needed' ? 'daily' : p.frequency, timing: p.timing, timingGroup: 'morning', notes: '', addedDate: getToday() }); setAddModal(p); window.scrollTo(0, 0); };
+  const openAdd = (p) => { setModalData({ libId: p.id, name: p.name, vialMg: String(p.defaultVialMg), waterMl: String(p.defaultWaterMl || 2), dose: String(p.defaultDose), unit: p.defaultUnit, frequency: p.frequency, timing: p.timing, timingGroup: p.frequency?.includes('week') ? 'weekly' : 'morning', notes: '', addedDate: getToday() }); setAddModal(p); window.scrollTo(0, 0); };
   const confirmAdd = () => { const nd = { id: makeId(), libId: modalData.libId, name: modalData.name, vialMg: parseFloat(modalData.vialMg) || 5, waterMl: parseFloat(modalData.waterMl) || 2, dose: parseFloat(modalData.dose) || 100, unit: modalData.unit, frequency: modalData.frequency, timing: modalData.timing, timingGroup: modalData.timingGroup || 'morning', addedDate: modalData.addedDate || getToday() }; setStack(p => [...p, nd]); setAddModal(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const removeFromStack = (id) => { setStack(p => p.filter(s => s.id !== id)); };
   const openEdit = (c) => { setModalData({ ...c, vialMg: String(c.vialMg), waterMl: String(c.waterMl), dose: String(c.dose), addedDate: c.addedDate || '' }); setEditModal(c); };
@@ -865,8 +865,8 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
 
   return (
     <div style={{ animation: 'fadeUp .5s ease both' }}>
-      <header style={{ ...S.header, marginBottom: 16 }}><h1 style={{ ...S.brand, fontSize: 20 }}>PROFILE</h1><p style={S.sub}>Stack & Settings</p></header>
-      <div style={{ ...S.segWrap, marginBottom: 4 }}>{[{ k: 'stack', l: 'My Stack' }, { k: 'library', l: 'Library' }, { k: 'cost', l: 'Cost' }, { k: 'settings', l: 'Settings' }].map(s => <button key={s.k} onClick={() => setSv(s.k)} style={{ ...S.segBtn, ...(sv === s.k ? S.segOn : {}), transition: 'all .2s' }}>{s.l}</button>)}</div>
+      <header style={{ ...S.header, marginBottom: 10, position: 'relative' }}><h1 style={{ ...S.brand, fontSize: 20 }}>PROFILE</h1><p style={S.sub}>{sv === 'settings' ? 'Settings & Data' : 'Protocol Workspace'}</p><button aria-label={sv === 'settings' ? 'Close settings' : 'Open settings'} onClick={() => setSv(sv === 'settings' ? 'stack' : 'settings')} style={{ position: 'absolute', right: 2, top: 0, width: 38, height: 38, borderRadius: 12, border: `1px solid ${sv === 'settings' ? T.goldM : T.border}`, color: sv === 'settings' ? T.gold : T.t2, background: sv === 'settings' ? T.goldS : 'rgba(255,255,255,.025)', cursor: 'pointer', fontSize: 17 }}>⚙</button></header>
+      {sv !== 'settings' && <SectionNav ariaLabel="Profile sections" value={sv} onChange={setSv} items={[{ k: 'stack', l: 'Protocol' }, { k: 'library', l: 'Library' }, { k: 'cost', l: 'Cost' }]} />}
 
       {sv === 'stack' && <div>
         {profile && (
@@ -960,7 +960,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: T.t1, fontFamily: T.fb, letterSpacing: -0.1 }}>{c.name}</div>
                   <div style={{ fontSize: 12, color: T.t3, fontFamily: T.fb, marginTop: 3, fontWeight: 500 }}>
-                    <span style={{ fontFamily: T.fm }}>{fmtDose(c)}</span> {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}
+                    <span style={{ fontFamily: T.fm }}>{fmtDose(c)}{unitsOf(c) > 0 ? ` · ${unitsOf(c).toFixed(1)}u draw` : ''}</span> {'\u00B7'} {(FREQ_META[c.frequency] || { label: c.frequency }).label} {'\u00B7'} {c.timingGroup || 'morning'}
                     {c.addedDate && <span style={{ color: T.t3 }}> {'\u00B7'} since <span style={{ fontFamily: T.fm }}>{c.addedDate.slice(5)}</span></span>}
                   </div>
                 </div>
@@ -1068,6 +1068,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
             <div style={{ fontSize: 28, opacity: 0.12, marginBottom: 8 }}>{'\u25CB'}</div>
             <p style={{ fontFamily: T.fd, fontSize: 18, fontWeight: 300, color: T.t2, letterSpacing: 1 }}>Your stack is empty</p>
             <p style={{ fontSize: 12, color: T.t3, fontFamily: T.fb, lineHeight: 1.6, marginTop: 6 }}>Browse the Library to build your protocol</p>
+            <button onClick={() => setSv('library')} style={{ ...S.logBtn, marginTop: 14 }}>Explore the Library</button>
           </div>
         ) : (
           <div>
@@ -1499,7 +1500,7 @@ export default function ProfileTab({ stack, setStack, profile, setProfile, logs:
                   )}
                   {/* Add/Remove button */}
                   <div style={{ marginTop: 4 }}>
-                    {added ? <button onClick={(e) => { e.stopPropagation(); const idx = stack.findIndex(s => s.compoundId === p.id); if (idx >= 0 && window.confirm('Remove ' + p.name + ' from stack?')) { const ns = [...stack]; ns.splice(idx, 1); setStack(ns); } }} style={{ ...S.pill, fontSize: 13 + z, padding: '10px 14px', color: 'rgba(220,80,80,0.7)', borderColor: 'rgba(220,80,80,0.2)', width: '100%', textAlign: 'center' }}>Remove from Stack</button>
+                    {added ? <button onClick={(e) => { e.stopPropagation(); const idx = stack.findIndex(s => s.libId === p.id); if (idx >= 0 && window.confirm('Remove ' + p.name + ' from stack?')) { const ns = [...stack]; ns.splice(idx, 1); setStack(ns); } }} style={{ ...S.pill, fontSize: 13 + z, padding: '10px 14px', color: 'rgba(220,80,80,0.7)', borderColor: 'rgba(220,80,80,0.2)', width: '100%', textAlign: 'center' }}>Remove from Protocol</button>
                       : <button onClick={(e) => { e.stopPropagation(); openAdd(p); }} style={{ ...S.pill, fontSize: 13 + z, padding: '10px 14px', borderColor: cc, color: cc, width: '100%', textAlign: 'center' }}>+ Add to Stack</button>}
                   </div>
                 </div>

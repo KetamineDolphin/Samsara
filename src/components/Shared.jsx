@@ -1,4 +1,5 @@
 /* SAMSARA v3.6 - Shared Components */
+import { useEffect, useRef } from 'react';
 import T from '../utils/tokens';
 import { SITE_COLORS } from '../utils/tokens';
 
@@ -134,6 +135,22 @@ export function SamsaraSymbol({ size = 44, detail = "auto", animate = true }) {
 // Backward compat alias
 export function Enso({ size = 44 }) {
   return <SamsaraSymbol size={size} />;
+}
+
+export function SectionNav({ items, value, onChange, ariaLabel = 'Section navigation' }) {
+  const railRef = useRef(null);
+  useEffect(() => {
+    const active = railRef.current?.querySelector('[aria-selected="true"]');
+    active?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [value]);
+  return (
+    <div ref={railRef} role="tablist" aria-label={ariaLabel} style={{ display: 'flex', gap: 5, overflowX: 'auto', padding: 4, marginBottom: 16, background: 'rgba(0,0,0,.28)', border: `1px solid ${T.border}`, borderRadius: 13, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+      {items.map(item => {
+        const active = value === item.k;
+        return <button key={item.k} role="tab" aria-selected={active} onClick={() => onChange(item.k)} style={{ flex: items.length <= 4 ? 1 : '0 0 auto', minWidth: items.length <= 4 ? 0 : 70, border: `1px solid ${active ? 'rgba(201,168,76,.2)' : 'transparent'}`, borderRadius: 9, padding: '9px 12px', cursor: 'pointer', whiteSpace: 'nowrap', background: active ? 'linear-gradient(180deg,rgba(201,168,76,.14),rgba(201,168,76,.07))' : 'transparent', color: active ? T.gold : T.t3, fontFamily: T.fb, fontSize: 11.5, fontWeight: active ? 650 : 500, letterSpacing: .1, boxShadow: active ? '0 4px 14px rgba(0,0,0,.16)' : 'none', transition: 'background .18s ease,color .18s ease,border-color .18s ease' }}>{item.l || item.label}{item.pro && <span style={{ marginLeft: 5, fontFamily: T.fm, fontSize: 7, letterSpacing: .8, color: T.gold }}>PRO</span>}</button>;
+      })}
+    </div>
+  );
 }
 
 export function SyringeVis({ u, max = 100 }) {
@@ -280,6 +297,7 @@ export function BodyMap({ siteHistory, onTapSite, suggestedSite, siteAnalysis })
 }
 
 export const TabIcons = {
+  HOME: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /><path d="M12 7.5v9M7.5 12h9" /><circle cx="12" cy="12" r="2.4" fill={c} stroke="none" /></svg>,
   CALC: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round"><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="10" x2="10" y2="10" /><line x1="14" y1="10" x2="16" y2="10" /><line x1="8" y1="14" x2="10" y2="14" /><line x1="14" y1="14" x2="16" y2="14" /><line x1="8" y1="18" x2="16" y2="18" /></svg>,
   TRACK: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /><circle cx="12" cy="12" r="3" /></svg>,
   BODY: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round"><circle cx="12" cy="5" r="3" /><path d="M12 8v5M8 21l2-8M16 21l-2-8M7 11h10" /></svg>,

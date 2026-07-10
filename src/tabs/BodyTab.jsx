@@ -591,6 +591,9 @@ export default function BodyTab({
   /* --- view state --- */
   const [activeViewState, setActiveView] = useState('Log');
   const activeView = externalView || activeViewState;
+  const isMetric = profile?.unitSystem === 'metric';
+  const weightUnit = isMetric ? 'kg' : 'lbs';
+  const waistUnit = isMetric ? 'cm' : 'in';
   const [step, setStep] = useState(1);
   // Pre-fill stats from last checkin if available.
   // Day number is DERIVED from profile.startDate + check-in date — no manual entry needed.
@@ -735,7 +738,7 @@ export default function BodyTab({
     setAnalyzing(true); setError(null); setParseWarning(null); setStep(3);
     const prev = checkins.length > 0 ? checkins[checkins.length - 1] : null;
     const prevContext = prev
-      ? `Previous check-in (${prev.weight} lbs, ${prev.waist}" waist): ${JSON.stringify(prev.analysis || {})}`
+      ? `Previous check-in (${prev.weight} ${weightUnit}, ${prev.waist} ${waistUnit} waist): ${JSON.stringify(prev.analysis || {})}`
       : 'First check-in - establish baseline.';
     const photoLabels = ['front', 'side', 'back', 'flex'].filter(k => photos[k]);
     const stackCategories = stack.length > 0
@@ -745,7 +748,7 @@ export default function BodyTab({
       model: AI_MODEL, max_tokens: 2500, temperature: 0, system: ANALYSIS_PROMPT,
       messages: [{ role: 'user', content: [
         ...buildImageBlocks(photos),
-        { type: 'text', text: `${stats.weight} lbs, ${stats.waist}" waist.\nPhotos: ${photoLabels.join(', ')} (${photoLabels.length}).\nActive protocol categories: ${stackCategories}.\nGoal: ${profile?.primaryGoal || 'recomp'}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.\n${prevContext}` },
+        { type: 'text', text: `${stats.weight} ${weightUnit}, ${stats.waist} ${waistUnit} waist.\nPhotos: ${photoLabels.join(', ')} (${photoLabels.length}).\nActive protocol categories: ${stackCategories}.\nGoal: ${profile?.primaryGoal || 'recomp'}. Bio sex: ${profile?.biologicalSex || 'unknown'}. Age: ${profile?.age || '?'}.\n${prevContext}` },
       ]}],
     };
     setLastPayload(payload);
@@ -759,7 +762,7 @@ export default function BodyTab({
     processAnalysisResponse(result);
     abortRef.current = null;
     setAnalyzing(false);
-  }, [photos, stats, stack, checkins, processAnalysisResponse]);
+  }, [photos, stats, stack, checkins, processAnalysisResponse, weightUnit, waistUnit]);
 
   // Gate analysis behind AIDisclaimer consent (skip if user has previous AI analyses)
   const hasConsentedBefore = checkins.some(c => c.analysis);
@@ -832,18 +835,18 @@ export default function BodyTab({
   const runEstimate = useCallback(async () => {
     if (!photos.front) return;
     setEstimating(true); setEstimateError(null);
-    const heightStr = profile?.height ? `${profile.height.feet}'${profile.height.inches}"` : 'unknown';
+    const heightStr = profile?.height ? (isMetric ? `${profile.height.cm || profile.heightCm || 'unknown'} cm` : `${profile.height.feet}'${profile.height.inches}"`) : 'unknown';
     // Gather context for maximum accuracy
     const photoAngles = ['front', 'side', 'back', 'flex'].filter(k => photos[k]);
     const now = new Date();
     const hour = now.getHours();
-    const timeContext = hour < 10 ? 'morning (likely fasted/dehydrated — weight may be 2-3 lbs below daily average)' :
-                        hour < 14 ? 'midday (post-meal, hydrated — close to true average)' :
-                        hour < 18 ? 'afternoon (well-hydrated, post-meals — may be 1-2 lbs above morning)' :
-                        'evening (full day of food/water — likely 2-4 lbs above morning weight)';
+    const timeContext = hour < 10 ? 'morning (possibly fasted; hydration can affect scale weight)' :
+                        hour < 14 ? 'midday (food and water intake can affect scale weight)' :
+                        hour < 18 ? 'afternoon (post-meal and hydration variance is possible)' :
+                        'evening (a full day of food and water can raise scale weight versus morning)';
     // Previous data for sanity-checking
-    const prevWeight = lastCheckin?.weight ? `Last recorded weight: ${lastCheckin.weight} lbs (${lastCheckin.date}).` : 'No previous weight on file.';
-    const prevWaist = lastCheckin?.waist ? `Last recorded waist: ${lastCheckin.waist}" (${lastCheckin.date}).` : 'No previous waist on file.';
+    const prevWeight = lastCheckin?.weight ? `Last recorded weight: ${lastCheckin.weight} ${weightUnit} (${lastCheckin.date}).` : 'No previous weight on file.';
+    const prevWaist = lastCheckin?.waist ? `Last recorded waist: ${lastCheckin.waist} ${waistUnit} (${lastCheckin.date}).` : 'No previous waist on file.';
     // What we need estimated
     const needWeight = aiEstimate.weight && !stats.weight;
     const needWaist = aiEstimate.waist && !stats.waist;
@@ -860,8 +863,8 @@ export default function BodyTab({
       if (result.parsed) {
         setStats(p => {
           const updated = { ...p };
-          if (result.parsed.weightLbs && needWeight) updated.weight = String(Math.round(result.parsed.weightLbs));
-          if (result.parsed.waistInches && needWaist) updated.waist = String(Math.round(result.parsed.waistInches * 10) / 10);
+          if (result.parsed.weightLbs && needWeight) updated.weight = String(isMetric ? Math.round(result.parsed.weightLbs * 0.453592 * 10) / 10 : Math.round(result.parsed.weightLbs));
+          if (result.parsed.waistInches && needWaist) updated.waist = String(Math.round((isMetric ? result.parsed.waistInches * 2.54 : result.parsed.waistInches) * 10) / 10);
           return updated;
         });
         if (!result.parsed.weightLbs && needWeight) setEstimateError('Could not estimate weight. Enter manually.');
@@ -873,7 +876,7 @@ export default function BodyTab({
       setEstimateError('Estimation failed. Enter manually.');
     }
     setEstimating(false);
-  }, [photos, profile, lastCheckin, aiEstimate, stats.weight, stats.waist]);
+  }, [photos, profile, lastCheckin, aiEstimate, stats.weight, stats.waist, isMetric]);
 
   // Auto-trigger AI estimation when front photo is uploaded and estimates are needed
   const autoEstimateTriggered = useRef(false);
@@ -1266,7 +1269,7 @@ export default function BodyTab({
                 <span style={{ fontSize: 18 }}>{'\u21BB'}</span>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.gold, fontFamily: T.fb }}>Same as last time?</div>
-                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{lastCheckin.weight} lbs {'\u00B7'} {lastCheckin.waist}" waist {'\u00B7'} Day {(parseInt(lastCheckin.day) || 0) + 7}</div>
+                  <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 2 }}>{lastCheckin.weight} {weightUnit} {'\u00B7'} {lastCheckin.waist} {waistUnit} waist {'\u00B7'} Day {(parseInt(lastCheckin.day) || 0) + 7}</div>
                 </div>
               </button>
             )}
@@ -1295,7 +1298,7 @@ export default function BodyTab({
               {/* Weight — with AI estimate toggle */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Weight (lbs)</label>
+                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Weight ({weightUnit})</label>
                   <button onClick={() => { setAiEstimate(p => ({ ...p, weight: !p.weight })); if (!aiEstimate.weight) setStats(p => ({ ...p, weight: '' })); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 10, color: aiEstimate.weight ? T.teal : T.t3, fontFamily: T.fm, fontWeight: aiEstimate.weight ? 600 : 400 }}>
@@ -1314,7 +1317,7 @@ export default function BodyTab({
               {/* Waist — with AI estimate toggle */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Waist (inches)</label>
+                  <label style={{ ...S.label, fontSize: 10, margin: 0 }}>Waist ({waistUnit})</label>
                   <button onClick={() => { setAiEstimate(p => ({ ...p, waist: !p.waist })); if (!aiEstimate.waist) setStats(p => ({ ...p, waist: '' })); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 10, color: aiEstimate.waist ? T.teal : T.t3, fontFamily: T.fm, fontWeight: aiEstimate.waist ? 600 : 400 }}>
@@ -1381,7 +1384,7 @@ export default function BodyTab({
                 {aiEstimate.weight && stats.weight && (
                   <div style={{ flex: 1, ...S.card, padding: '8px 10px', textAlign: 'center', borderColor: 'rgba(0,210,180,0.15)', background: 'rgba(0,210,180,0.02)' }}>
                     <div style={{ fontSize: 8, color: T.teal, fontFamily: T.fm, letterSpacing: 1, textTransform: 'uppercase' }}>AI Weight</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{stats.weight}<span style={{ fontSize: 10, color: T.t3 }}> lbs</span></div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{stats.weight}<span style={{ fontSize: 10, color: T.t3 }}> {weightUnit}</span></div>
                   </div>
                 )}
                 {aiEstimate.waist && stats.waist && (
@@ -1397,7 +1400,7 @@ export default function BodyTab({
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <div style={{ flex: 1, ...S.card, padding: '10px 12px', textAlign: 'center' }}>
                   <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, letterSpacing: 1.5, textTransform: 'uppercase' }}>Weight</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{stats.weight}<span style={{ fontSize: 11, color: T.t3 }}> lbs</span></div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{stats.weight}<span style={{ fontSize: 11, color: T.t3 }}> {weightUnit}</span></div>
                 </div>
                 <div style={{ flex: 1, ...S.card, padding: '10px 12px', textAlign: 'center' }}>
                   <div style={{ fontSize: 9, color: T.t3, fontFamily: T.fm, letterSpacing: 1.5, textTransform: 'uppercase' }}>Waist</div>
@@ -1626,7 +1629,7 @@ export default function BodyTab({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
               <div style={statCard}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: T.t1, fontFamily: T.fm }}>{latest ? latest.weight : '-'}</div>
-                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 4 }}>Weight lbs</div>
+                <div style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: T.t3, fontFamily: T.fm, marginTop: 4 }}>Weight {weightUnit}</div>
                 {weightDelta && <div style={{ fontSize: 9, color: parseFloat(weightDelta) <= 0 ? T.teal : T.amber, fontFamily: T.fm, marginTop: 2 }}>{parseFloat(weightDelta) > 0 ? '+' : ''}{weightDelta}</div>}
               </div>
               <div style={statCard}>
@@ -1752,7 +1755,7 @@ export default function BodyTab({
                 <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{compareA ? 'No ' + compareSlot : 'Select date'}</span>
               )}
             </div>
-            {ciA && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textAlign: 'center' }}>{ciA.weight}<span style={{ fontSize: 8 }}> lbs</span> {'\u00B7'} {ciA.waist}<span style={{ fontSize: 8 }}>"</span></div>}
+            {ciA && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textAlign: 'center' }}>{ciA.weight}<span style={{ fontSize: 8 }}> {weightUnit}</span> {'\u00B7'} {ciA.waist}<span style={{ fontSize: 8 }}> {waistUnit}</span></div>}
           </div>
 
           <div style={{ flex: 1 }}>
@@ -1771,7 +1774,7 @@ export default function BodyTab({
                 <span style={{ fontSize: 10, color: T.t3, fontFamily: T.fm }}>{compareB ? 'No ' + compareSlot : 'Select date'}</span>
               )}
             </div>
-            {ciB && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textAlign: 'center' }}>{ciB.weight}<span style={{ fontSize: 8 }}> lbs</span> {'\u00B7'} {ciB.waist}<span style={{ fontSize: 8 }}>"</span></div>}
+            {ciB && <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, marginTop: 6, textAlign: 'center' }}>{ciB.weight}<span style={{ fontSize: 8 }}> {weightUnit}</span> {'\u00B7'} {ciB.waist}<span style={{ fontSize: 8 }}> {waistUnit}</span></div>}
           </div>
         </div>
 

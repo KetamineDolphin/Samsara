@@ -1,6 +1,12 @@
 /* SAMSARA v3.0 - Utility Functions */
 
-export const getToday = () => new Date().toISOString().slice(0, 10);
+export const localISODate = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+export const getToday = () => localISODate();
 export const getNow = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 export const doseMgOf = (c) => c.unit === "mcg" ? c.dose / 1000 : c.dose;
 export const concOf = (c) => c.waterMl > 0 ? c.vialMg / c.waterMl : 0;
@@ -9,7 +15,7 @@ export const dosesPerVial = (c) => { const d = doseMgOf(c); return d > 0 ? c.via
 export const fmtDose = (c) => c.unit === "mg" ? `${c.dose} mg` : `${c.dose} mcg`;
 export const daysNextWeekly = () => { const d = new Date().getDay(), diff = (7 - d) % 7; return diff === 0 ? 7 : diff; };
 export const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-export const getWeekStart = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0, 10); };
+export const getWeekStart = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return localISODate(d); };
 
 // Vial freshness - days since reconstitution
 export const vialAge = (vial) => {

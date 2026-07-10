@@ -5,6 +5,7 @@ import S from '../utils/styles';
 import { SamsaraSymbol } from './Shared';
 import { isSupported, requestPermission } from '../utils/notifications';
 import LIB from '../data/library';
+import { getToday } from '../utils/helpers';
 
 const GOALS = [
   { value: 'fat_loss', title: 'Fat Loss', desc: 'Reduce body fat while preserving muscle' },
@@ -74,7 +75,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
   const [qsScreen, setQsScreen] = useState(1); // 1 = pick compound, 2 = basic info + confirm
   const [qsSearch, setQsSearch] = useState('');
   const [qsCompound, setQsCompound] = useState(null);
-  const [qsDraft, setQsDraft] = useState({ currentWeight: '', biologicalSex: 'male', unitSystem: 'imperial' });
+  const [qsDraft, setQsDraft] = useState({ currentWeight: '', biologicalSex: null, unitSystem: 'imperial', vialMg: '', waterMl: '', dose: '', doseUnit: 'mcg' });
 
   /* --- Quick Start: filtered compounds list --- */
   const qsFiltered = useMemo(() => {
@@ -115,7 +116,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
   const hUnit = isImperial ? null : 'cm';
 
   /* --- validation --- */
-  const s2Valid = draft.age && parseFloat(draft.age) > 0 && parseFloat(draft.age) < 120;
+  const s2Valid = draft.age && parseFloat(draft.age) >= 18 && parseFloat(draft.age) < 120;
   const s3Valid = draft.currentWeight && parseFloat(draft.currentWeight) > 0 && draft.currentWaist && parseFloat(draft.currentWaist) > 0;
   const s4Valid = draft.targetWeight && parseFloat(draft.targetWeight) > 0 && draft.targetWaist && parseFloat(draft.targetWaist) > 0;
 
@@ -148,7 +149,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
       targetBodyFat: parseFloat(draft.targetBodyFat) || null,
       primaryGoal: draft.primaryGoal,
       goalDate: draft.goalDate || null,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: getToday(),
       onboardingComplete: true,
     };
     setProfile(finalProfile);
@@ -167,14 +168,20 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
   const completeQuickStart = () => {
     const c = qsCompound;
     if (!c) return;
-    const isImp = qsDraft.unitSystem === 'imperial';
+    const configuredCompound = {
+      ...c,
+      defaultVialMg: parseFloat(qsDraft.vialMg),
+      defaultWaterMl: parseFloat(qsDraft.waterMl),
+      defaultDose: parseFloat(qsDraft.dose),
+      defaultUnit: qsDraft.doseUnit,
+    };
     const finalProfile = {
       ...profile,
       name: '',
       age: null,
       biologicalSex: qsDraft.biologicalSex,
       unitSystem: qsDraft.unitSystem,
-      height: isImp ? { feet: 5, inches: 10 } : { cm: 175 },
+      height: null,
       currentWeight: parseFloat(qsDraft.currentWeight) || null,
       currentWaist: null,
       targetWeight: null,
@@ -182,12 +189,12 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
       targetBodyFat: null,
       primaryGoal: 'recomp',
       goalDate: null,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: getToday(),
       onboardingComplete: true,
       quickStartCompound: c.id,
     };
     setProfile(finalProfile);
-    onComplete(c); // pass compound so App can add to stack
+    onComplete(configuredCompound);
   };
 
   const finishCurrentFlow = () => {
@@ -310,9 +317,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
                       <div style={{ fontSize: 14, fontWeight: 600, color: selected ? T.gold : T.t1, fontFamily: T.fb }}>{c.name}</div>
                       <div style={{ fontSize: 10, color: catColor(c.category), fontFamily: T.fm, marginTop: 2 }}>{c.category}</div>
                     </div>
-                    <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, textAlign: 'right' }}>
-                      {c.defaultDose}{c.defaultUnit} {c.frequency === 'weekly' ? '/wk' : '/day'}
-                    </div>
+                    <div style={{ fontSize: 10, color: T.t3, fontFamily: T.fm, textAlign: 'right' }}>Set up →</div>
                     {selected && <span style={{ color: T.gold, fontSize: 16 }}>{'\u2713'}</span>}
                   </button>
                 );
@@ -334,7 +339,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
       case 2: {
         const c = qsCompound;
         const qsWUnit = qsDraft.unitSystem === 'imperial' ? 'lbs' : 'kg';
-        const qsValid = true; // weight optional in quick start
+        const qsValid = parseFloat(qsDraft.vialMg) > 0 && parseFloat(qsDraft.waterMl) > 0 && parseFloat(qsDraft.dose) > 0;
         return (
           <div>
             <h2 style={titleStyle}>Almost There</h2>
@@ -343,9 +348,7 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
             {/* Compound summary card */}
             <div style={{ ...S.card, padding: '14px 16px', marginBottom: 20, borderColor: T.goldM, background: T.goldS }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: T.gold, fontFamily: T.fb }}>{c.name}</div>
-              <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginTop: 4 }}>
-                {c.defaultDose}{c.defaultUnit} · {c.frequency} · Vial: {c.defaultVialMg}mg
-              </div>
+              <div style={{ fontSize: 11, color: T.t2, fontFamily: T.fm, marginTop: 4 }}>{c.frequency} · enter the values on your prescription</div>
               <div style={{ fontSize: 11, color: T.t3, fontFamily: T.fm, marginTop: 6, lineHeight: 1.5 }}>{c.description}</div>
             </div>
 
@@ -366,13 +369,22 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
             <div style={{ marginBottom: 16 }}>
               <label style={S.label}>Biological Sex</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }].map(o => (
-                  <button key={o.v} onClick={() => setQsDraft(p => ({ ...p, biologicalSex: o.v }))} style={{
+                {[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }, { v: null, l: 'Not set' }].map(o => (
+                  <button key={o.l} onClick={() => setQsDraft(p => ({ ...p, biologicalSex: o.v }))} style={{
                     ...S.freqBtn, flex: 1, padding: '10px 4px', fontSize: 11, fontFamily: T.fm,
                     ...(qsDraft.biologicalSex === o.v ? S.freqOn : {}),
                   }}>{o.l}</button>
                 ))}
               </div>
+            </div>
+
+            <div style={{ ...S.card, padding: '14px', marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: T.gold, fontFamily: T.fm, letterSpacing: 1.4, marginBottom: 12 }}>CALCULATOR SETUP</div>
+              <InputWithTag label="Vial amount" value={qsDraft.vialMg} onChange={e => setQsDraft(p => ({ ...p, vialMg: e.target.value }))} placeholder="From vial" tag="mg" style={{ marginBottom: 12 }} />
+              <InputWithTag label="Water volume" value={qsDraft.waterMl} onChange={e => setQsDraft(p => ({ ...p, waterMl: e.target.value }))} placeholder="Your mix" tag="ml" style={{ marginBottom: 12 }} />
+              <label style={S.label}>Prescribed dose</label>
+              <div style={{ ...S.frow, gap: 6 }}><input type="number" inputMode="decimal" value={qsDraft.dose} onChange={e => setQsDraft(p => ({ ...p, dose: e.target.value }))} placeholder="Required" style={{ ...S.input, minWidth: 0 }} /><div style={{ ...S.togGrp, flexShrink: 0 }}>{['mcg', 'mg'].map(unit => <button key={unit} onClick={() => setQsDraft(p => ({ ...p, doseUnit: unit }))} style={{ ...S.togBtn, ...(qsDraft.doseUnit === unit ? S.togOn : {}) }}>{unit}</button>)}</div></div>
+              <div style={{ fontSize: 10.5, color: T.t3, fontFamily: T.fb, lineHeight: 1.45, marginTop: 10 }}>Use the values supplied by your clinician or pharmacy. Samsara does not choose a dose.</div>
             </div>
 
             {/* Weight (optional) */}
@@ -406,8 +418,8 @@ export default function OnboardingFlow({ profile, setProfile, onComplete, settin
               ))}
             </div>
 
-            <button onClick={handleQsFinish} style={{ ...goldBtn, background: T.gold, color: T.bg, fontWeight: 700 }}>
-              Start with {c.name} {'\u2192'}
+            <button onClick={handleQsFinish} disabled={!qsValid} style={{ ...goldBtn, background: T.gold, color: T.bg, fontWeight: 700, ...(!qsValid ? { opacity: .4, cursor: 'default' } : {}) }}>
+              Open My Calculator {'\u2192'}
             </button>
             <div style={{ height: 8 }} />
             <button onClick={() => setQsScreen(1)} style={skipBtn}>{'\u2190'} Change Compound</button>

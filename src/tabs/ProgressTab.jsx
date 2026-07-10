@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import T from '../utils/tokens';
 import S from '../utils/styles';
-import { ProBadge } from '../components/ProGate';
+import { SectionNav } from '../components/Shared';
 import BodyTab from './BodyTab';
 import MetricsTab from './MetricsTab';
 
@@ -22,6 +22,9 @@ const VIEWS = [
   { k: 'checkin',  label: 'Check-in', sub: 'Body Check-in',         owner: 'body',    view: 'Check' },
   { k: 'scan',     label: 'Scan',     sub: 'AI Body Scan',          owner: 'body',    view: 'Scan',    pro: true },
   { k: 'compare',  label: 'Compare',  sub: 'Before / After',        owner: 'body',    view: 'Compare' },
+  { k: 'history',  label: 'History',  sub: 'Body History',          owner: 'body',    view: 'Log' },
+  { k: 'body_insights', label: 'Body Insights', sub: 'Body Insights', owner: 'body', view: 'Insights' },
+  { k: 'state',    label: 'State',    sub: 'Daily State',           owner: 'metrics', view: 'state' },
   { k: 'insights', label: 'Insights', sub: 'Insights & Well-being', owner: 'metrics', view: 'insights' },
   { k: 'labs',     label: 'Labs',     sub: 'Bloodwork',             owner: 'metrics', view: 'labs',    pro: true },
 ];
@@ -32,6 +35,9 @@ export default function ProgressTab(props) {
     VIEWS.some(v => v.k === initialView) ? initialView : 'charts'
   );
   const current = VIEWS.find(v => v.k === active) || VIEWS[0];
+  const group = active === 'labs' ? 'labs' : ['checkin', 'scan', 'compare', 'history', 'body_insights'].includes(active) ? 'body' : 'overview';
+  const openGroup = (next) => setActive(next === 'body' ? 'checkin' : next === 'labs' ? 'labs' : 'charts');
+  const actionCard = (k, title, body, pro = false) => <button key={k} onClick={() => setActive(k)} style={{ ...S.card, margin: 0, padding: '12px 13px', textAlign: 'left', cursor: 'pointer', minHeight: 78 }}><span style={{ display: 'block', fontFamily: T.fb, color: T.t1, fontWeight: 650, fontSize: 12.5 }}>{title}{pro && !isPro && <span style={{ color: T.gold, fontFamily: T.fm, fontSize: 7, marginLeft: 5 }}>PRO</span>}</span><span style={{ display: 'block', fontFamily: T.fb, color: T.t3, fontSize: 10.5, lineHeight: 1.4, marginTop: 5 }}>{body}</span></button>;
 
   return (
     <div>
@@ -40,17 +46,11 @@ export default function ProgressTab(props) {
         <p style={S.sub}>{current.sub}</p>
       </header>
 
-      <div style={{ ...S.segWrap, overflowX: 'auto', marginBottom: 16 }}>
-        {VIEWS.map(v => (
-          <button
-            key={v.k}
-            onClick={() => setActive(v.k)}
-            style={{ ...S.segBtn, ...(active === v.k ? S.segOn : {}), whiteSpace: 'nowrap', minWidth: 0, padding: '7px 10px', fontSize: 11, letterSpacing: 0.3 }}
-          >
-            {v.label}{v.pro && !isPro && <ProBadge />}
-          </button>
-        ))}
-      </div>
+      <SectionNav ariaLabel="Progress sections" value={group} onChange={openGroup} items={[{ k: 'overview', l: 'Overview' }, { k: 'body', l: 'Body' }, { k: 'labs', l: 'Labs', pro: true }]} />
+
+      {group === 'overview' && active === 'charts' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 13 }}>{actionCard('state', 'Daily State', 'Energy, focus, hunger, and mood.')}{actionCard('insights', 'Protocol Insights', 'Adherence and weekly patterns.')}</div>}
+      {group === 'body' && active === 'checkin' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 13 }}>{actionCard('scan', 'AI Scan', 'Photo-based body assessment.', true)}{actionCard('history', 'History', 'Review and edit check-ins.')}{actionCard('compare', 'Compare', 'Place two check-ins side by side.')}{actionCard('body_insights', 'Body Insights', 'Composition trends and milestones.')}</div>}
+      {((group === 'overview' && active !== 'charts') || (group === 'body' && active !== 'checkin')) && <button onClick={() => setActive(group === 'body' ? 'checkin' : 'charts')} style={{ ...S.btnGhost, padding: '0 0 12px', color: T.gold }}>← Back to {group === 'body' ? 'body' : 'overview'}</button>}
 
       {current.owner === 'body' ? (
         <BodyTab
